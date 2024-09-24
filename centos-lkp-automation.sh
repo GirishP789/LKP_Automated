@@ -120,8 +120,9 @@ echo "installing perl-IPC-Run"
 yum install -y perl-IPC-Run &> /dev/null
 echo "installing libxslt-devel"
 yum install -y libxslt-devel &> /dev/null
-echo "installting bundler"
-yum install -y bundler &> /dev/null
+echo "installting bundler 2.5.19"
+gem install bundler -v 2.5.19 &> /dev/null
+bundler _2.5.29_ install &> /dev/null
 
 echo " "
 echo "============================================"
