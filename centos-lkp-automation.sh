@@ -116,6 +116,12 @@ echo "installing libpfm"
 yum install -y libpfm &> /dev/null
 echo "installing libpfm-devel"
 yum install -y libpfm-devel &> /dev/null
+echo "installing perl-IPC-Run"
+yum install -y perl-IPC-Run &> /dev/null
+echo "installing libxslt-devel"
+yum install -y libxslt-devel &> /dev/null
+echo "installting bundler"
+yum install -y bundler &> /dev/null
 
 echo " "
 echo "============================================"
@@ -143,7 +149,8 @@ cp $loc/lkp-tests/distro/installer/centos $loc/lkp-tests/distro/installer/openeu
 
 > $loc/lkp-tests/distro/installer/OpenCloudOS
 > $loc/lkp-tests/distro/installer/anolis
-> $loc/lkp-tests/distro/installer/euler
+> $loc/lkp-tests/distro/installer/openeuler
+
 
 # Confirm that the file contents were deleted
 echo "Contents of '$FILE' deleted."
