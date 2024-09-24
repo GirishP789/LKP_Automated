@@ -199,7 +199,8 @@ echo "--------------------"
 lkp split-job $loc/lkp-tests/jobs/unixbench.yaml
 echo " "
 echo "Installing test-cases"
-lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml &> /dev/null
+echo "/////////  This might take a while  /////////"
+lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml 
 
 echo " "
 echo "============================================"
