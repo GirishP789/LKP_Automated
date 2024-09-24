@@ -265,3 +265,20 @@ systemctl start lkp.service
 
 
 
+echo "===================================="
+echo "------------------------------------"
+
+echo " "
+echo "use the below to stop the service or to stop running the lkp test-cases"
+echo "		sudo systemctl stop lkp.service"
+echo "use the below to disable the service"
+echo "		sudo systemctl disable lkp.service"
+echo " "
+
+echo "///////Note: The service created will auto-matically run when the system is started, to disable it use the above command mentioned /////////"
+echo " "
+echo "------------------------------------"
+echo "===================================="
+
+
+

@@ -1,20 +1,30 @@
 #!/bin/bash
 
 loc=$(cd ../ && pwd)
+echo " "
+echo "============================"
+echo "Installing dependencies"
+echo "============================"
+echo " "
+echo "Installing make"
 sudo apt install make -y
-
+echo "Updating the system "
 sudo apt update -y
-
+echo "Installing git"
 sudo apt install git -y
 
 sudo apt update -y
-
+echo " "
+echo "============================================="
+echo "Cloning into the lkp-tests and installing lkp"
+echo "============================================="
+echo " "
 cd $loc 
 
-git clone https://github.com/intel/lkp-tests/
+git clone https://github.com/intel/lkp-tests.git
 
 cd $loc/lkp-tests
-
+echo "Changing the rt-tests source link to older source"
 filename="$loc/lkp-tests/programs/hackbench/pkg/PKGBUILD"
 line_number=10
 new_text='source=("https://www.kernel.org/pub/linux/utils/rt-tests/older/rt-tests-${pkgver}.tar.gz")'
@@ -28,23 +38,34 @@ fn="$loc/lkp-tests/programs/rt-tests/pkg/PKGBUILD"
 ln=8
 n_t='source=("https://www.kernel.org/pub/linux/utils/rt-tests/older/rt-tests-$pkgver.tar.gz")'
 sed -i "${ln}s|.*|${n_t}|" "${fn}"
-
+echo " "
+echo "Building the lkp"
 sudo make install -y
-
+echo "Installing lkp"
 sudo lkp install -y
-
+echo "splitting the test-cases into directory called splits"
 mkdir $loc/lkp-tests/splits
 
 cd $loc/lkp-tests/splits
-
+echo "  Splitting Hackbench"
 lkp split-job $loc/lkp-tests/jobs/hackbench.yaml
-
+echo "  Splitting Ebizzy"
 lkp split-job $loc/lkp-tests/jobs/ebizzy.yaml
-
+echo "  Splitting Unixbench"
 lkp split-job $loc/lkp-tests/jobs/unixbench.yaml
 
+echo " "
+echo "Installing split test-cases"
 lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml -y
 
+
+echo " "
+echo "================================================"
+echo "Creating a lkp service to run the lkp test-cases"
+echo "================================================"
+echo " "
+
+echo "Writing all the runnable test-cases to a script"
 cd $loc/lkp-tests/
 
 touch $loc/lkp-tests/lkp.sh
@@ -52,6 +73,7 @@ touch $loc/lkp-tests/lkp.sh
 
 echo "#!/bin/bash" >> lkp.sh
 
+echo "Creating a service file for running the script"
 files=$(ls "$loc/lkp-tests/splits/")
 
 file_array=($files)
@@ -78,10 +100,27 @@ echo -e "ExecStart=/bin/bash $loc/lkp-tests/lkp.sh" >> lkp.service
 echo -e "\n" >> lkp.service 
 echo -e "[Install]" >> lkp.service
 echo -e "WantedBy=multi-user.target" >> lkp.service
-
+echo "Reloading the daemon"
 systemctl daemon-reload
+echo "Enabling the lkp service"
 systemctl enable lkp.service
+echo "Starting the lkp service"
 systemctl start lkp.service
 
 
+
+echo "===================================="
+echo "------------------------------------"
+
+echo " "
+echo "use the below to stop the service or to stop running the lkp test-cases"
+echo "		sudo systemctl stop lkp.service"
+echo "use the below to disable the service"
+echo "		sudo systemctl disable lkp.service"
+echo " "
+
+echo "///////Note: The service created will auto-matically run when the system is started, to disable it use the above command mentioned /////////"
+echo " "
+echo "------------------------------------"
+echo "===================================="
 
