@@ -144,12 +144,12 @@ echo "==========================================================="
 echo " "
 cd $loc/lkp-tests
 echo "Creating a new file with the distro name for installation in installer directory"
-cp $loc/lkp-tests/distro/installer/centos $loc/lkp-tests/distro/installer/OpenCloudOS
+cp $loc/lkp-tests/distro/installer/centos $loc/lkp-tests/distro/installer/opencloudos
 cp $loc/lkp-tests/distro/installer/centos $loc/lkp-tests/distro/installer/anolis
 cp $loc/lkp-tests/distro/installer/centos $loc/lkp-tests/distro/installer/openeuler
 
 
-> $loc/lkp-tests/distro/installer/OpenCloudOS
+> $loc/lkp-tests/distro/installer/opencloudos
 > $loc/lkp-tests/distro/installer/anolis
 > $loc/lkp-tests/distro/installer/openeuler
 
@@ -161,7 +161,7 @@ echo "Contents of '$FILE' deleted."
 echo "Creating a new file with the distro name for installation in adaptation-pkg directory"
 
 
-cp $loc/lkp-tests/distro/adaptation-pkg/centos $loc/lkp-tests/distro/adaptation-pkg/OpenCloudOS
+cp $loc/lkp-tests/distro/adaptation-pkg/centos $loc/lkp-tests/distro/adaptation-pkg/opencloudos
 cp $loc/lkp-tests/distro/adaptation-pkg/centos $loc/lkp-tests/distro/adaptation-pkg/anolis
 cp $loc/lkp-tests/distro/adaptation-pkg/centos $loc/lkp-tests/distro/adaptation-pkg/openeuler
 
