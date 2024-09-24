@@ -11,7 +11,7 @@ yum update -y &> /dev/null
 echo "installing git"
 yum install git -y &> /dev/null
 
-loc1=$(cd ../ && pwd)
+loc=$(cd ../ && pwd)
 echo "installing gcc" 
 echo "installing make"
 yum install gcc make -y &> /dev/null
