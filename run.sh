@@ -10,10 +10,10 @@ echo "$loc"
 # Check if the distro is Ubuntu
 if [ "$distro" == "ubuntu" ]; then
   echo "Found $distro on this system, installing required dependencies"
-  $loc/ubuntu-lkp-automation.sh
+  sudo $loc/ubuntu-lkp-automation.sh
 else
   echo "Found $distro on this system. installing required dependencies"
-  $loc/centos-lkp-automation.sh
+  sudo $loc/centos-lkp-automation.sh
 
 fi
 
