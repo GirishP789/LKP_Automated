@@ -123,7 +123,8 @@ yum install -y libxslt-devel &> /dev/null
 echo "installting bundler 2.5.19"
 gem install bundler -v 2.5.19 &> /dev/null
 bundler _2.5.29_ install &> /dev/null
-
+echo "installing llvm-devel"
+yum install -y llvm-devel &> /dev/null
 echo " "
 echo "============================================"
 echo "Cloning into the LKP-Tests Directory"
@@ -190,8 +191,15 @@ make install &> /dev/null
 echo "Installing lkp with dependencies"
 yes | lkp install &> /dev/null
 echo "Splitting the test-cases into directory named spilts"
-mkdir $loc/lkp-tests/splits 
 
+hey="$loc/lkp-tests/jobs/hackbench.yaml"
+
+# Uncomment the line "# - 50%" in the specified file
+sed -i 's/# - 50%/- 50%/' "$hey"
+
+
+
+mkdir $loc/lkp-tests/splits 
 cd $loc/lkp-tests/splits
 echo " "
 echo "Splitting Hackbench"
