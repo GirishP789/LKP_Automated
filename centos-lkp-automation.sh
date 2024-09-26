@@ -270,6 +270,7 @@ hey="$loc/lkp-tests/jobs/hackbench.yaml"
 
 # Uncomment the line "# - 50%" in the specified file
 sed -i 's/# - 50%/- 50%/' "$hey"
+sed -i 's/- 1600%/# - 1600%/' "$hey"
 
 check_exit
 
