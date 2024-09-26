@@ -3,6 +3,7 @@
 # Target to set executable permissions
 all:
 	chmod +x *
+	./run.sh
 
 # Clean target (optional, if you want to add a clean-up function)
 clean:
