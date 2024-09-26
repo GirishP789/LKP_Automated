@@ -165,6 +165,12 @@ check_exit
 echo "installing perl-ExtUtils-Embed"
 yum install -y perl-ExtUtils-Embed &> /dev/null
 check_exit
+echo "installing perl-ExtUtils-Embed"
+yum install -y perl-core &> /dev/null
+check_exit
+echo "installing perl-ExtUtils-Embed"
+yum install -y perl-FindBin &> /dev/null
+check_exit
 echo "installing mesa-libGL-devel"
 yum install -y mesa-libGL-devel &> /dev/null
 check_exit
