@@ -104,6 +104,9 @@ check_exit
 echo "installing libcurl-devel"
 yum install libcurl-devel -y &> /dev/null
 check_exit
+echo "installing patch"
+yum install patch -y &> /dev/null
+check_exit
 
 echo "installing text-table"
 gem install text-table &> /dev/null
@@ -153,11 +156,20 @@ check_exit
 echo "installing elfutils-devel"
 yum install -y elfutils-devel &> /dev/null
 check_exit
+echo "installing libX11-devel"
+yum install -y libX11-devel &> /dev/null
+check_exit
 echo "installing systemtap-sdt-devel"
 yum install -y systemtap-sdt-devel &> /dev/null
 check_exit
 echo "installing perl-ExtUtils-Embed"
 yum install -y perl-ExtUtils-Embed &> /dev/null
+check_exit
+echo "installing mesa-libGL-devel"
+yum install -y mesa-libGL-devel &> /dev/null
+check_exit
+echo "installing mesa-libGL-devel"
+yum install -y libXext-devel &> /dev/null
 check_exit
 echo "installing libcapstone-dev"
 yum install -y libcapstone-dev &> /dev/null
@@ -295,6 +307,8 @@ echo " "
 echo "Installing test-cases"
 echo "/////////  This might take a while  /////////"
 lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml &> /dev/null 
+lkp install $loc/lkp-tests/splits/ebizzy-10s-100x-200%.yaml &> /dev/null
+lkp install $loc/lkp-tests/splits/unixbench-100%-300s-arithoh.yaml &> /dev/null
 check_exit
 echo " "
 echo "============================================"
