@@ -47,6 +47,9 @@ check_exit
 echo "installing rubygem-psych"
 yum install -y rubygem-psych &> /dev/null
 check_exit
+echo "installing development tools manually"
+yum install gcc gcc-c++ make cmake git automake autoconf -y &> /dev/null
+check_exit
 echo "installing bsdtar"
 yum install -y bsdtar &> /dev/null
 check_exit
@@ -317,6 +320,14 @@ lkp install $loc/lkp-tests/splits/ebizzy-10s-100x-200%.yaml &> /dev/null
 lkp install $loc/lkp-tests/splits/unixbench-100%-300s-arithoh.yaml &> /dev/null
 check_exit
 echo " "
+echo "=========================="
+echo "Clearing the older results"
+echo "=========================="
+echo " "
+rm -rf /lkp/result/hackbench/*
+rm -rf /lkp/result/ebizzy/*
+rm -rf /lkp/result/unixbench/*
+echo " "
 echo "============================================"
 echo "Creating a service file for running LKP"
 echo "============================================"
@@ -332,7 +343,79 @@ echo "Ebizzy"
 echo "Unixbench"
 echo " "
 echo "Writing into lkp.sh"
-echo "#!/bin/bash" >> lkp.sh
+
+
+echo "#!/bin/bash" >> lkp.sh &> /dev/null
+echo "STATE_FILE=\"$loc/lkp-tests/progress.txt\"" >> lkp.sh &> /dev/null
+echo "test_cases=(" >> lkp.sh &> /dev/null
+echo "Creating a service file for running gthe script"
+files=$(ls "$loc/lkp-tests/splits/") &> /dev/null
+file_array=($files) &> /dev/null
+
+for test_case in "${file_array[@]}"
+do
+   echo "    \"lkp run $loc/lkp-tests/splits/$test_case\"" >> lkp.sh &> /dev/null
+done
+echo ")" >> lkp.sh
+:'
+# Add the loop to run the test cases
+echo "for test_case in \"\${test_cases[@]}\"; do" >> lkp.sh
+echo "    echo \"Running: \$test_case\"" >> lkp.sh
+echo "    \$test_case" >> lkp.sh
+echo "    if [ \$? -eq 0 ]; then" >> lkp.sh
+echo "        echo \"\$test_case completed successfully.\" >> \$STATE_FILE" >> lkp.sh
+echo "    else" >> lkp.sh
+echo "        echo \"\$test_case failed.\" >> \$STATE_FILE" >> lkp.sh
+echo "    fi" >> lkp.sh
+echo "done" >> lkp.sh
+'
+# Append the get_last_completed and run_tests functions
+echo "get_last_completed() {" >> lkp.sh
+echo "    if [ -f \"\$STATE_FILE\" ]; then" >> lkp.sh
+echo "        cat \"\$STATE_FILE\"" >> lkp.sh
+echo "    else" >> lkp.sh
+echo "        echo \"\"  # No progress made yet" >> lkp.sh
+echo "    fi" >> lkp.sh
+echo "}" >> lkp.sh
+echo "" >> lkp.sh
+
+echo "# Function to run tests" >> lkp.sh
+echo "run_tests() {" >> lkp.sh
+echo "    local last_completed=\$(get_last_completed)" >> lkp.sh
+echo "    local start_index=0" >> lkp.sh
+echo "" >> lkp.sh
+echo "    # Find the index of the last completed test" >> lkp.sh
+echo "    for i in \"\${!test_cases[@]}\"; do" >> lkp.sh
+echo "        if [[ \"\${test_cases[\$i]}\" == \"\$last_completed\" ]]; then" >> lkp.sh
+echo "            start_index=\$((i + 1))" >> lkp.sh
+echo "            break" >> lkp.sh
+echo "        fi" >> lkp.sh
+echo "    done" >> lkp.sh
+echo "" >> lkp.sh
+echo "    # Run tests starting from where it left off" >> lkp.sh
+echo "    for (( i = start_index; i < \${#test_cases[@]}; i++ )); do" >> lkp.sh
+echo "        echo \"Running: \${test_cases[\$i]}\"" >> lkp.sh
+echo "        \${test_cases[\$i]}" >> lkp.sh
+#echo "        lkp run \"\${test_cases[\$i]}\"" >> lkp.sh
+echo "        if [ \$? -eq 0 ]; then" >> lkp.sh
+echo "            echo \"\${test_cases[\$i]}\" > \"\$STATE_FILE\"" >> lkp.sh
+echo "        else" >> lkp.sh
+echo "            echo \"Test failed, stopping execution.\"" >> lkp.sh
+echo "            exit 1" >> lkp.sh
+echo "        fi" >> lkp.sh
+#echo "        echo \"\${test_cases[\$i]}\" > \"\$STATE_FILE\"" >> lkp.sh
+echo "    done" >> lkp.sh
+echo "" >> lkp.sh
+echo "    # Clean up the state file if all tests are completed" >> lkp.sh
+echo "    rm -f \"\$STATE_FILE\"" >> lkp.sh
+echo "}" >> lkp.sh
+echo "" >> lkp.sh
+echo "run_tests" >> lkp.sh
+
+chmod 777 $loc/lkp-tests/lkp.sh
+
+
+:'echo "#!/bin/bash" >> lkp.sh
 
 files=$(ls "$loc/lkp-tests/splits/")
 
@@ -345,7 +428,7 @@ done
 check_exit
 echo "Making the written script executable"
 chmod 777 lkp.sh
-
+'
 echo "Creating a service to run lkp"
 
 cd /etc/systemd/system/
