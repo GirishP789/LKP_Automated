@@ -315,6 +315,12 @@ check_exit
 echo " "
 echo "Installing test-cases"
 echo "/////////  This might take a while  /////////"
+echo "   /////     /  \\/  \\      //////      "
+echo "  | o o |    \\      /      | o o |     "
+echo " (   ^   )    \\    /      (   ^   )    "
+echo "  | --- |      \\  /        | --- |     "
+echo "   -----        \\/          -----      "
+
 lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml &> /dev/null 
 lkp install $loc/lkp-tests/splits/ebizzy-10s-100x-200%.yaml &> /dev/null
 lkp install $loc/lkp-tests/splits/unixbench-100%-300s-arithoh.yaml &> /dev/null
