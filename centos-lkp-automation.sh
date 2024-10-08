@@ -316,11 +316,36 @@ lkp split-job $loc/lkp-tests/jobs/unixbench.yaml
 check_exit
 echo " "
 echo "Installing test-cases"
-echo "/////////  This might take a while  /////////"
-lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml &> /dev/null 
+
+# Function to display loading animation
+loading_animation() {
+    local delay=0.1
+    local spinstr='|/-\'
+    while :; do
+        for ((i=0; i<${#spinstr}; i++)); do
+            printf "\r%s" "${spinstr:$i:1}"
+            sleep $delay
+        done
+    done
+}
+
+# Start loading animation in the background
+loading_animation &
+# Save the PID of the loading animation process
+spinner_pid=$!
+
+# Simulate a long-running process (replace with your actual command)
+echo "---------This might take a while, please wait while the process completes........"
+lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml &> /dev/null
 lkp install $loc/lkp-tests/splits/ebizzy-10s-100x-200%.yaml &> /dev/null
 lkp install $loc/lkp-tests/splits/unixbench-100%-300s-arithoh.yaml &> /dev/null
 check_exit
+# Stop the loading animation
+kill "$spinner_pid" > /dev/null 2>&1
+
+# Clean up the line after animation
+echo -e "\rDone!     "
+
 echo " "
 echo "=========================="
 echo "Clearing the older results"
@@ -347,16 +372,16 @@ echo " "
 echo "Writing into lkp.sh"
 
 
-echo "#!/bin/bash" >> lkp.sh &> /dev/null
-echo "STATE_FILE=\"$loc/lkp-tests/progress.txt\"" >> lkp.sh &> /dev/null
-echo "test_cases=(" >> lkp.sh &> /dev/null
+echo "#!/bin/bash" >> lkp.sh
+echo "STATE_FILE=\"$loc/lkp-tests/progress.txt\"" >> lkp.sh
+echo "test_cases=(" >> lkp.sh
 echo "Creating a service file for running gthe script"
-files=$(ls "$loc/lkp-tests/splits/") &> /dev/null
-file_array=($files) &> /dev/null
+files=$(ls "$loc/lkp-tests/splits/")
+file_array=($files)
 
 for test_case in "${file_array[@]}"
 do
-   echo "    \"lkp run $loc/lkp-tests/splits/$test_case\"" >> lkp.sh &> /dev/null
+   echo "    \"lkp run $loc/lkp-tests/splits/$test_case\"" >> lkp.sh
 done
 echo ")" >> lkp.sh
 :'
