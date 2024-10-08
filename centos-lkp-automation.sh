@@ -41,6 +41,8 @@ check_exit
 echo "installing rubygems-devel"
 yum install rubygems-devel -y &> /dev/null
 check_exit
+echo "installing time"
+yum install time -y &> /dev/null
 echo "installing ruby-devel"
 yum install -y ruby-devel &> /dev/null
 check_exit
