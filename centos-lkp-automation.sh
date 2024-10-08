@@ -484,7 +484,8 @@ check_exit
 
 echo "===================================="
 echo "------------------------------------"
-
+echo " "
+echo "-----To find the results run the file /lkp/result/result.sh you will get the sorted results.-----"
 echo " "
 echo "use the below to stop the service or to stop running the lkp test-cases"
 echo "		sudo systemctl stop lkp.service"
@@ -497,5 +498,7 @@ echo " "
 echo "------------------------------------"
 echo "===================================="
 
+sleep 10
 
+cp $loc/LKP_Automated/result.sh /lkp/result/
 
