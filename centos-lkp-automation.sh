@@ -14,8 +14,8 @@ check_exit() {
 # Signal handling to allow graceful exit on Ctrl+C
 trap "echo 'Caught SIGINT. Exiting...'; exit 0" SIGINT
 
-
-
+read -p "Do you want to create a service file for the lkp running? (yes/y): " service
+service=$(echo "$service" | tr '[:upper:]' '[:lower:]')
 
 echo " "
 echo "============================================"
@@ -475,15 +475,23 @@ echo -e "ExecStart=/bin/bash $loc/lkp-tests/lkp.sh" >> lkp.service
 echo -e "\n" >> lkp.service 
 echo -e "[Install]" >> lkp.service
 echo -e "WantedBy=multi-user.target" >> lkp.service
-echo "Reloading daemon"
-systemctl daemon-reload
-echo "Enabling lkp service"
-systemctl enable lkp.service
-echo "Starting lkp service"
-check_exit
-systemctl start lkp.service
 
-check_exit
+if [[ "$service" == "yes" || "$service" == "y" ]]; then
+	echo "Reloading daemon"
+	systemctl daemon-reload
+	echo "Enabling lkp service"
+	systemctl enable lkp.service
+	echo "Starting lkp service"
+	systemctl start lkp.service
+	check_exit
+	echo " "
+else
+	echo "Created service file but didnot start the service"
+	echo "--- start it use the below commands ---"
+	echo "  systemctl daemon-reload"
+	echo "  systemctl enable lkp.service"
+	echo "  systemctl start lkp.service"
+	echo " "
 
 echo "===================================="
 echo "------------------------------------"
