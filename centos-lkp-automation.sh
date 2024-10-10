@@ -38,6 +38,9 @@ check_exit
 echo "installing perf"
 yum install perf  -y &> /dev/null
 check_exit
+echo "installing tar"
+yum install tar  -y &> /dev/null
+check_exit
 echo "installing rubygems-devel"
 yum install rubygems-devel -y &> /dev/null
 check_exit
