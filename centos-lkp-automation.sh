@@ -13,6 +13,7 @@ check_exit() {
 
 # Signal handling to allow graceful exit on Ctrl+C
 trap "echo 'Caught SIGINT. Exiting...'; exit 0" SIGINT
+echo " "
 
 read -p "Do you want to create a service file for the lkp running? (yes/y): " servi < /dev/tty
 servi=$(echo "$servi" | tr '[:upper:]' '[:lower:]')
