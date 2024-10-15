@@ -35,6 +35,9 @@ echo "installing gcc"
 echo "installing make"
 yum install gcc make -y &> /dev/null
 check_exit
+echo "installing time"
+yum install time -y &> /dev/null
+check_exit
 echo "installing perf"
 yum install perf  -y &> /dev/null
 check_exit
