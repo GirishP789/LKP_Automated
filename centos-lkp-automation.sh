@@ -14,8 +14,8 @@ check_exit() {
 # Signal handling to allow graceful exit on Ctrl+C
 trap "echo 'Caught SIGINT. Exiting...'; exit 0" SIGINT
 
-read -p "Do you want to create a service file for the lkp running? (yes/y): " service
-service=$(echo "$service" | tr '[:upper:]' '[:lower:]')
+read -p "Do you want to create a service file for the lkp running? (yes/y): " servi
+service=$(echo "$servi" | tr '[:upper:]' '[:lower:]')
 
 echo " "
 echo "============================================"
@@ -476,7 +476,7 @@ echo -e "\n" >> lkp.service
 echo -e "[Install]" >> lkp.service
 echo -e "WantedBy=multi-user.target" >> lkp.service
 
-if [[ "$service" == "yes" || "$service" == "y" ]]; then
+if [[ "$servi" == "yes" || "$servi" == "y" ]]; then
 	echo "Reloading daemon"
 	systemctl daemon-reload
 	echo "Enabling lkp service"
