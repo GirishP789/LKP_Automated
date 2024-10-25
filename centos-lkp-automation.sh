@@ -17,8 +17,7 @@ echo " "
 
 read -p "Do you want to create a service file for the lkp running? (yes/y): " servi < /dev/tty
 servi=$(echo "$servi" | tr '[:upper:]' '[:lower:]')
-
-
+loc=$(cd ../ && pwd)
 
 
 
@@ -290,6 +289,7 @@ n_t='source=("https://www.kernel.org/pub/linux/utils/rt-tests/older/rt-tests-$pk
 sed -i "${ln}s|.*|${n_t}|" "${fn}"
 check_exit
 echo " "
+
 echo "============================================"
 echo "Installing and splitting the LKP tests"
 echo "============================================"
@@ -297,7 +297,7 @@ echo " "
 echo "building lkp to /usr/local/bin"
 make install &> /dev/null
 echo "Installing lkp with dependencies"
-yes | lkp install &> /dev/null
+yes | /usr/local/bin/lkp install &> /dev/null
 echo "Splitting the test-cases into directory named spilts"
 check_exit
 hey="$loc/lkp-tests/jobs/hackbench.yaml"
@@ -313,17 +313,17 @@ cd $loc/lkp-tests/splits
 echo " "
 echo "Splitting Hackbench"
 echo "--------------------"
-lkp split-job $loc/lkp-tests/jobs/hackbench.yaml 
+/usr/local/bin/lkp split-job $loc/lkp-tests/jobs/hackbench.yaml 
 check_exit
 echo " "
 echo "Splitting Ebizzy"
 echo "--------------------"
-lkp split-job $loc/lkp-tests/jobs/ebizzy.yaml
+/usr/local/bin/lkp split-job $loc/lkp-tests/jobs/ebizzy.yaml
 check_exit
 echo " "
 echo "Splitting Unixbench"
 echo "--------------------"
-lkp split-job $loc/lkp-tests/jobs/unixbench.yaml
+/usr/local/bin/lkp split-job $loc/lkp-tests/jobs/unixbench.yaml
 check_exit
 echo " "
 echo "Installing test-cases"
@@ -344,16 +344,14 @@ loading_animation() {
 loading_animation &
 # Save the PID of the loading animation process
 spinner_pid=$!
-
 # Simulate a long-running process (replace with your actual command)
 echo "---------This might take a while, please wait while the process completes........"
-lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml &> /dev/null
-lkp install $loc/lkp-tests/splits/ebizzy-10s-100x-200%.yaml &> /dev/null
-lkp install $loc/lkp-tests/splits/unixbench-100%-300s-arithoh.yaml &> /dev/null
+/usr/local/bin/lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml &> /dev/null
+/usr/local/bin/lkp install $loc/lkp-tests/splits/ebizzy-10s-100x-200%.yaml &> /dev/null
+/usr/local/bin/lkp install $loc/lkp-tests/splits/unixbench-100%-300s-arithoh.yaml &> /dev/null
 check_exit
 # Stop the loading animation
 kill "$spinner_pid" > /dev/null 2>&1
-
 # Clean up the line after animation
 echo -e "\rDone!     "
 
