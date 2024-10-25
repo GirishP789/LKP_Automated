@@ -42,6 +42,7 @@ check_exit
 git clone https://github.com/intel/lkp-tests.git
 check_exit
 cd $loc/lkp-tests
+: << 'END_COMMENT'
 echo "Changing the rt-tests source link to older source"
 filename="$loc/lkp-tests/programs/hackbench/pkg/PKGBUILD"
 line_number=10
@@ -56,6 +57,7 @@ fn="$loc/lkp-tests/programs/rt-tests/pkg/PKGBUILD"
 ln=8
 n_t='source=("https://www.kernel.org/pub/linux/utils/rt-tests/older/rt-tests-$pkgver.tar.gz")'
 sed -i "${ln}s|.*|${n_t}|" "${fn}"
+END_COMMENT
 echo " "
 echo " "
 echo "============================================"
@@ -63,7 +65,7 @@ echo "Installing and splitting the LKP tests"
 echo "============================================"
 echo " "
 echo "Building the lkp"
-sudo make install -y
+sudo make install
 check_exit
 echo "Installing lkp"
 yes | sudo lkp install
@@ -83,7 +85,9 @@ lkp split-job $loc/lkp-tests/jobs/unixbench.yaml
 check_exit
 echo " "
 echo "Installing split test-cases"
-lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml -y
+lkp install $loc/lkp-tests/splits/hackbench-pipe-8-process-100%.yaml
+lkp install $loc/lkp-tests/splits/ebizzy-10s-100x-200%.yaml
+lkp install $loc/lkp-tests/splits/unixbench-100%-300s-arithoh.yaml
 check_exit
 
 echo " "
