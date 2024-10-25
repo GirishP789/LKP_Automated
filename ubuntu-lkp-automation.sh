@@ -1,7 +1,7 @@
 #!/bin/bash
-
+user=$1
 STOP_FILE="/tmp/stop_lkp_script"
-
+echo "$user     ALL=(ALL)       ALL" >> /etc/sudoers
 # Function to check if the stop file exists
 check_exit() {
     if [ -f "$STOP_FILE" ]; then

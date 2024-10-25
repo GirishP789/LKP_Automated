@@ -1,6 +1,6 @@
 #!/bin/bash
-
-
+user=$1
+echo "$user     ALL=(ALL)       ALL" >> /etc/sudoers
 STOP_FILE="/tmp/stop_lkp_script"
 
 # Function to check if the stop file exists
@@ -518,4 +518,3 @@ echo "===================================="
 sleep 10
 
 cp $loc/LKP_Automated/result.sh /lkp/result/
-

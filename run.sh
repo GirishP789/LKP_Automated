@@ -20,15 +20,15 @@ echo "CURRENT USER: $user"
 echo " "
 if [ "$distro" == "ubuntu" ]; then
   if [ "$user" == "amd" ]; then
-	  echo 'Amd$1234!' | sudo -S $loc/ubuntu-lkp-automation.sh
+	  echo 'Amd$1234!' | sudo -S $loc/ubuntu-lkp-automation.sh $user
   else
-	  sudo $loc/ubuntu-lkp-automation.sh
+	  sudo $loc/ubuntu-lkp-automation.sh $user
   fi
 else
   if [ "$user" == "amd" ]; then
-	  echo 'Amd$1234!' |  sudo -S $loc/centos-lkp-automation.sh
+	  echo 'Amd$1234!' |  sudo -S $loc/centos-lkp-automation.sh $user
   else
-	  sudo $loc/centos-lkp-automation.sh
+	  sudo $loc/centos-lkp-automation.sh $user
   fi
 fi
 
