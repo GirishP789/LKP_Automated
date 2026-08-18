@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Resolve the script's own directory so it can find dependencies/*.txt
+# regardless of the caller's current working directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+PACKAGES_FILE="$SCRIPT_DIR/dependencies/packages.txt"
+GEMS_FILE="$SCRIPT_DIR/dependencies/gems.txt"
+
 STOP_FILE="/tmp/stop_lkp_script"
 
 check_exit() {
@@ -71,148 +77,81 @@ check_package_manager
 echo "Detected Package Manager: $installer"
 echo "--------------------------------------------"
 
-# Canonical dependency names below follow RPM (dnf/yum/zypper) conventions, since
+# Canonical dependency names follow RPM (dnf/yum/zypper) conventions, since
 # that naming is shared by the majority of the officially supported distros
-# (CentOS, Euler, Anolis, CloudOS, Rocky Linux, Oracle, Redhat). The
-# *_PKG_MAP arrays below translate a canonical name into the correct package
-# name for distros that use a different package manager/naming convention
-# (Ubuntu/Velinux via apt, Arch Linux via pacman). zypper/apk are not among
-# the officially supported distros but are mapped on a best-effort basis.
+# (CentOS, Euler, Anolis, CloudOS, Rocky Linux, Oracle, Redhat). The actual
+# list of packages, plus their per-package-manager overrides, lives in
+# dependencies/packages.txt so new dependencies can be added/renamed without
+# touching this script. See that file's header for the format.
 #
-# A mapped value of "" means the dependency is already bundled with another
-# package on that distro (e.g. Arch's "gcc" already includes the C++
-# front-end), so it is safely skipped instead of failing.
-pkgs_list=(git wget make gcc time tar bc pkg-config libtool ca-certificates rsync cpio \
-    rubygems-devel ruby-devel rubygem-psych ruby gcc-c++ cmake automake autoconf bsdtar \
-    glibc-static turbojpeg-devel slang-devel libunwind-devel libcap-devel libbabeltrace \
-    libbabeltrace-devel numactl-devel flex python3-devel java-17-openjdk fakeroot \
-    openssl-devel openssl libcurl-devel patch bison elfutils-libelf-devel elfutils-devel \
-    libX11-devel systemtap-sdt-devel perl-ExtUtils-Embed perl-core perl-FindBin \
-    mesa-libGL-devel libXext-devel capstone-devel clang clang-devel libpfm libpfm-devel \
-    perl-IPC-Run libxslt-devel llvm-devel)
+# A resolved value of "" means the dependency is already bundled with
+# another package on that distro (e.g. Arch's "gcc" already includes the
+# C++ front-end), so it is safely skipped instead of failing.
+pkgs_list=()
+declare -A APT_PKG_MAP=()
+declare -A PACMAN_PKG_MAP=()
+declare -A ZYPPER_PKG_MAP=()
+declare -A APK_PKG_MAP=()
 
-declare -A APT_PKG_MAP=(
-    [rubygems-devel]=""
-    [ruby-devel]="ruby-dev"
-    [rubygem-psych]=""
-    [gcc-c++]="g++"
-    [bsdtar]="libarchive-tools"
-    [glibc-static]=""
-    [turbojpeg-devel]="libturbojpeg0-dev"
-    [slang-devel]="libslang2-dev"
-    [libunwind-devel]="libunwind-dev"
-    [libcap-devel]="libcap-dev"
-    [libbabeltrace]="libbabeltrace1"
-    [libbabeltrace-devel]="libbabeltrace-dev"
-    [numactl-devel]="libnuma-dev"
-    [python3-devel]="python3-dev"
-    [java-17-openjdk]="openjdk-17-jdk"
-    [openssl-devel]="libssl-dev"
-    [libcurl-devel]="libcurl4-openssl-dev"
-    [elfutils-libelf-devel]="libelf-dev"
-    [elfutils-devel]="libdw-dev"
-    [libX11-devel]="libx11-dev"
-    [systemtap-sdt-devel]="systemtap-sdt-dev"
-    [perl-ExtUtils-Embed]="libperl-dev"
-    [perl-core]="perl"
-    [perl-FindBin]="perl"
-    [mesa-libGL-devel]="libgl1-mesa-dev"
-    [libXext-devel]="libxext-dev"
-    [capstone-devel]="libcapstone-dev"
-    [clang-devel]="libclang-dev"
-    [libpfm]="libpfm4"
-    [libpfm-devel]="libpfm4-dev"
-    [perl-IPC-Run]="libipc-run-perl"
-    [libxslt-devel]="libxslt1-dev"
-    [llvm-devel]="llvm-dev"
-)
+load_packages_file() {
+    local file="$1"
+    local current_pkg=""
+    local line manager value
 
-declare -A PACMAN_PKG_MAP=(
-    [rubygems-devel]="ruby"
-    [ruby-devel]="ruby"
-    [rubygem-psych]="ruby"
-    [gcc-c++]=""
-    [bsdtar]=""
-    [glibc-static]=""
-    [turbojpeg-devel]="libjpeg-turbo"
-    [slang-devel]="slang"
-    [libunwind-devel]="libunwind"
-    [libcap-devel]="libcap"
-    [libbabeltrace]="babeltrace"
-    [libbabeltrace-devel]="babeltrace"
-    [numactl-devel]="numactl"
-    [python3-devel]="python"
-    [java-17-openjdk]="jdk17-openjdk"
-    [openssl-devel]="openssl"
-    [libcurl-devel]="curl"
-    [elfutils-libelf-devel]="libelf"
-    [elfutils-devel]="elfutils"
-    [libX11-devel]="libx11"
-    [systemtap-sdt-devel]="systemtap"
-    [perl-ExtUtils-Embed]="perl"
-    [perl-core]="perl"
-    [perl-FindBin]="perl"
-    [mesa-libGL-devel]="mesa"
-    [libXext-devel]="libxext"
-    [capstone-devel]="capstone"
-    [clang-devel]=""
-    [libpfm]="libpfm"
-    [libpfm-devel]="libpfm"
-    [perl-IPC-Run]="perl-ipc-run"
-    [libxslt-devel]="libxslt"
-    [llvm-devel]="llvm"
-)
+    if [[ ! -f "$file" ]]; then
+        capture_error "Dependency file not found: $file" "The dependencies/ directory should ship alongside lkp-deps.sh."
+    fi
 
-# openSUSE (zypper) mostly follows RPM naming already used as the canonical
-# name, only override the handful of packages known to differ.
-declare -A ZYPPER_PKG_MAP=(
-    [glibc-static]="glibc-devel-static"
-    [turbojpeg-devel]="libjpeg8-devel"
-    [libbabeltrace]="babeltrace"
-    [libbabeltrace-devel]="babeltrace-devel"
-    [capstone-devel]="capstone-devel"
-    [perl-IPC-Run]="perl-IPC-Run"
-)
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        [[ -z "$line" ]] && continue
 
-# Alpine (apk) is not officially supported; best-effort mapping using its
-# "-dev" suffix convention (closer to Debian than RPM).
-declare -A APK_PKG_MAP=(
-    [rubygems-devel]=""
-    [ruby-devel]="ruby-dev"
-    [rubygem-psych]=""
-    [gcc-c++]="g++"
-    [bsdtar]=""
-    [glibc-static]=""
-    [turbojpeg-devel]="libjpeg-turbo-dev"
-    [slang-devel]="slang-dev"
-    [libunwind-devel]="libunwind-dev"
-    [libcap-devel]="libcap-dev"
-    [libbabeltrace]="babeltrace"
-    [libbabeltrace-devel]="babeltrace-dev"
-    [numactl-devel]="numactl-dev"
-    [python3-devel]="python3-dev"
-    [java-17-openjdk]="openjdk17"
-    [openssl-devel]="openssl-dev"
-    [libcurl-devel]="curl-dev"
-    [elfutils-libelf-devel]="elfutils-dev"
-    [elfutils-devel]="elfutils-dev"
-    [libX11-devel]="libx11-dev"
-    [systemtap-sdt-devel]=""
-    [perl-ExtUtils-Embed]="perl-dev"
-    [perl-core]="perl"
-    [perl-FindBin]="perl"
-    [mesa-libGL-devel]="mesa-dev"
-    [libXext-devel]="libxext-dev"
-    [capstone-devel]="capstone-dev"
-    [clang-devel]="clang-dev"
-    [libpfm]="libpfm4"
-    [libpfm-devel]="libpfm4-dev"
-    [perl-IPC-Run]=""
-    [libxslt-devel]="libxslt-dev"
-    [llvm-devel]="llvm-dev"
-)
+        if [[ "$line" =~ ^\[([A-Za-z0-9_.+-]+)\]$ ]]; then
+            current_pkg="${BASH_REMATCH[1]}"
+            pkgs_list+=("$current_pkg")
+            continue
+        fi
 
-gems_list=(text-table "activesupport -v 6.0.0" bigdecimal json racc parser tins term-ansicolor rubocop-ast rubocop flex "bundler -v 2.5.19" git)
+        if [[ -z "$current_pkg" ]]; then
+            continue
+        fi
+
+        if [[ "$line" =~ ^([a-zA-Z]+)=(.*)$ ]]; then
+            manager="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
+            [[ "$value" == "SKIP" ]] && value=""
+            case "$manager" in
+                apt) APT_PKG_MAP[$current_pkg]="$value" ;;
+                pacman) PACMAN_PKG_MAP[$current_pkg]="$value" ;;
+                zypper) ZYPPER_PKG_MAP[$current_pkg]="$value" ;;
+                apk) APK_PKG_MAP[$current_pkg]="$value" ;;
+                *) echo "Warning: unknown package manager '$manager' for [$current_pkg] in $file, ignoring." ;;
+            esac
+        fi
+    done < "$file"
+}
+
+gems_list=()
+
+load_gems_file() {
+    local file="$1"
+    local line
+
+    if [[ ! -f "$file" ]]; then
+        capture_error "Dependency file not found: $file" "The dependencies/ directory should ship alongside lkp-deps.sh."
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        [[ -z "$line" ]] && continue
+        gems_list+=("$line")
+    done < "$file"
+}
+
+load_packages_file "$PACKAGES_FILE"
+load_gems_file "$GEMS_FILE"
 
 failed_pkgs=()
 failed_gems=()

@@ -76,8 +76,20 @@ In case of support needed please contact the author of this script.
 ### Dependencies
 
 `lkp-deps.sh` installs the OS packages and Ruby gems required to build and run the LKP jobs. The
-package list is defined once using canonical (RPM-style) names and automatically translated to the
-correct package name for whichever package manager is detected (`apt`, `dnf`/`yum`, `pacman`,
-`zypper`, `apk`), so the same list works across all the supported distros without spurious
-"package not found" failures. `perf` is installed separately since its package name/availability is
+actual dependency lists live outside the script, in plain text files under `dependencies/`, so they
+can be updated without touching any bash code:
+
+- `dependencies/packages.txt` — OS packages. Each dependency is a canonical (RPM-style) name in
+  `[brackets]`, optionally followed by `apt=`, `pacman=`, `zypper=`, or `apk=` override lines when
+  that package manager uses a different name (or `SKIP` if it's already bundled elsewhere on that
+  distro). `dnf`/`yum` always use the canonical name. See the comments at the top of the file for
+  the full format and an example of adding a new dependency.
+- `dependencies/gems.txt` — Ruby gems, one per line (optionally with version flags, e.g.
+  `bundler -v 2.5.19`).
+
+This means the same list is automatically translated to the correct package name for whichever
+package manager is detected (`apt`, `dnf`/`yum`, `pacman`, `zypper`, `apk`), so it works across all
+the supported distros without spurious "package not found" failures, and new dependencies can be
+added by editing the `.txt` files instead of the script. `perf` is the one exception: it's installed
+by a small dedicated function in `lkp-deps.sh` since its package name/availability is
 kernel-version-specific on Debian/Ubuntu.
