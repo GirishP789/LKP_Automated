@@ -1,8 +1,12 @@
 #!/bin/bash
 
 handle_error() {
-        echo "Script failed, Check out the logs in /usr/lib/automation-logs for finding about the error"
-        exit
+        echo "Script failed: $1"
+        shift
+        for arg in "$@"; do
+                echo "$arg"
+        done
+        exit 1
 }
 
 # giving the current user root priviledges
@@ -27,10 +31,7 @@ else
         cp "$TEMP_SUDOERS" /etc/sudoers
         echo "Successfully added user to sudoers"
     else
-        echo "Error: Syntax check faileid. Changes not applied."
-	handle_error "Syntax check failed. Changes not applied for user privledges"
-	handle_error "Original sudoers file unchanged."
-        echo "Original sudoers file is unchanged"
+	handle_error "Syntax check failed. Changes not applied for user privledges" "Original sudoers file unchanged."
     fi
     
     # Clean up
@@ -70,11 +71,8 @@ if visudo -c -f "$TEMP_SUDOERS"; then
     cp "$TEMP_SUDOERS" /etc/sudoers
     echo "Successfully added /usr/local/bin to secure_path"
 else
-    echo "Error: Syntax check failed. Changes not applied."
-    handle_error "Syntax check failed. Addition of secure_path to defaults not done"
-    echo "Original sudoers file is unchanged"
     rm -f "$TEMP_SUDOERS"
-    exit 1
+    handle_error "Syntax check failed. Addition of secure_path to defaults not done" "Original sudoers file is unchanged."
 fi
 
 # Clean up

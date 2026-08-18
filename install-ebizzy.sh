@@ -5,6 +5,8 @@ lkp_dir=$2
 lkp_cmd=$3
 echo "Initiating the ebizzy $1 checks"
 
+STOP_FILE="/tmp/stop_lkp_script"
+
 check_exit() {
     if [ -f "$STOP_FILE" ]; then
         echo "Stop file detected. Exiting script..."
@@ -78,6 +80,7 @@ install_ebizzy() {
     echo "ebizzy installed successfully"
 }
 
+check_exit
 if [[ $case == "test" ]]; then
     test_ebizzy
 elif [[ $case == "install" ]]; then

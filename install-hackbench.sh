@@ -5,6 +5,8 @@ lkp_dir=$2
 lkp_cmd=$3
 echo "Initiating the hackbench $1 checks"
 
+STOP_FILE="/tmp/stop_lkp_script"
+
 check_exit() {
     if [ -f "$STOP_FILE" ]; then
         echo "Stop file detected. Exiting script..."
@@ -77,6 +79,7 @@ install_hackbench() {
     echo "hackbench installed successfully"
 }
 
+check_exit
 if [[ $case == "test" ]]; then
     test_hackbench
 elif [[ $case == "install" ]]; then

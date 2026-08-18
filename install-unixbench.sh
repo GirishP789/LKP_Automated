@@ -5,6 +5,8 @@ lkp_dir=$2
 lkp_cmd=$3
 echo "Initiating the unixbench $1 checks"
 
+STOP_FILE="/tmp/stop_lkp_script"
+
 check_exit() {
     if [ -f "$STOP_FILE" ]; then
         echo "Stop file detected. Exiting script..."
@@ -76,6 +78,7 @@ install_unixbench() {
     echo "unixbench installed successfully"
 }
 
+check_exit
 if [[ $case == "test" ]]; then
     test_unixbench
 elif [[ $case == "install" ]]; then

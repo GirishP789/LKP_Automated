@@ -9,6 +9,12 @@ echo "sudo systemctl set-property user-$(id -u).slice TasksMax=131072" >> /var/l
 echo "ulimit -u 65536" >> /var/lib/change_ulimit.sh
 echo "ulimit -n 65536" >> /var/lib/change_ulimit.sh
 chmod +x /var/lib/change_ulimit.sh
+
+# Keep SELinux happy on RHEL-family distros (Anolis included) so systemd is
+# allowed to execute the script; a no-op on systems without SELinux.
+if command -v restorecon &> /dev/null; then
+	restorecon -F /var/lib/change_ulimit.sh &> /dev/null || true
+fi
  
 touch /etc/systemd/system/change-ulimit.service
 echo "[Unit]" > /etc/systemd/system/change-ulimit.service
@@ -21,6 +27,10 @@ echo "ExecStart=/bin/bash /var/lib/change_ulimit.sh" >> /etc/systemd/system/chan
 echo "" >> /etc/systemd/system/change-ulimit.service
 echo "[Install]" >> /etc/systemd/system/change-ulimit.service
 echo "WantedBy=multi-user.target" >> /etc/systemd/system/change-ulimit.service
+
+if command -v restorecon &> /dev/null; then
+	restorecon -F /etc/systemd/system/change-ulimit.service &> /dev/null || true
+fi
  
 systemctl daemon-reload
 systemctl enable change-ulimit.service

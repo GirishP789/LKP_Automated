@@ -222,29 +222,38 @@ echo "CURRENT USER: $user"
 echo "Package Manager Found on the system: $installer"
 echo "Current working directory: $loc"
 echo "Please select the installation type:"
-echo "    1. Install and run the lkp test cases automatically (Hackbench, Ebizzy, Unixbench)"
-echo "    2. Only Install LKP, I will run the test cases manually later (Recommended for Hosts)"
+echo "    1. VM   : Install LKP and run the test cases automatically in the background"
+echo "             (Hackbench, Ebizzy, Unixbench). A systemd service is created so the"
+echo "             run resumes automatically after every reboot. Supported on all the"
+echo "             distros listed in the README (requires systemd)."
+echo "    2. Host : Only Install LKP, I will run the test cases manually later"
+echo "             (Recommended for Hosts)"
 
 while true; do
-    read -p "Enter your choice (1 or 2): " installation_choice
+    read -p "Enter your choice (1 for VM, 2 for Host): " installation_choice
 
     if [[ $installation_choice == "1" ]]; then
         installation_type="1"
+        if ! command -v systemctl &> /dev/null; then
+            capture_error "The VM option requires systemd (systemctl) to create the background service, but it was not found on this system." "Please re-run and choose option 2 (Host) instead, or run this on a systemd-based distro."
+        fi
 		echo "NOTE: This script will run the lkp test cases automatically after installation."
 		echo "NOTE: This script will rerun when you reboot the system."
-		echo "To disable this automatic run or stop the current run please use the command : sudo systemctl stop lkp.service"
+		echo "To disable this automatic run or stop the current run please use the command : sudo systemctl stop auto_lkp.service"
         break
     elif [[ $installation_choice == "2" ]]; then
         installation_type="2"
         break
     else
-        echo "Invalid choice. Please enter either 1 or 2."
+        echo "Invalid choice. Please enter either 1 (VM) or 2 (Host)."
     fi
 done
 
+check_exit
 check_package_existence git
 check_package_existence make
 
+check_exit
 clone_lkp
 
 # check wheather the required paths are present in sudoers file or not, if not present add them
@@ -256,6 +265,7 @@ if grep -q -i "anolis" /etc/os-release; then
 	$loc/change-ulimit.sh
 fi
 
+check_exit
 if command -v lkp; then
 	echo "LKP Found on the system in location: $(which lkp)"
 	echo "Checking the working of lkp......"
@@ -296,6 +306,7 @@ $lkp_cmd split-job $lkp_dir/jobs/hackbench.yaml &> /dev/null
 $lkp_cmd split-job $lkp_dir/jobs/ebizzy.yaml &> /dev/null
 $lkp_cmd split-job $lkp_dir/jobs/unixbench.yaml &> /dev/null
 
+check_exit
 echo "=============================="
 echo "Initiating the hackbench checks"
 if command -v hackbench; then
@@ -316,6 +327,7 @@ else
 	echo "Hackbench is installed and in working condition"
 fi
 
+check_exit
 echo "============================"
 echo "Initiating the ebizzy checks"
 if [[ $test_install_status -eq "-1" ]]; then
@@ -332,6 +344,7 @@ else
         echo "Ebizzy is installed and in working condition"
 fi
 
+check_exit
 echo "==============================="
 echo "Initiating the Unixbench checks"
 if [[ $test_install_status -eq "-1" ]]; then
@@ -352,15 +365,22 @@ rm -rf /lkp/result/hackbench/*
 rm -rf /lkp/result/ebizzy/*
 rm -rf /lkp/result/unixbench/*
 
-# Proceed to create the service file only if installation type is 1
+# Proceed to create the service file only if installation type is 1 (VM)
 if [[ $installation_type == "1" ]]; then
 	echo "================================================================================"
 	echo "Creating service file for automatic LKP test runs on system boot"
+	if ! command -v systemctl &> /dev/null; then
+		capture_error "systemd (systemctl) is required for the VM option's background service but was not found." "Please install systemd, or re-run and choose option 2 (Host) instead."
+	fi
 	$loc/create-service.sh $loc $lkp_dir
 	echo "Service file created at /etc/systemd/system/auto_lkp.service"
 	systemctl daemon-reload
-	systemctl enable auto_lkp.service
-	systemctl start auto_lkp.service
+	if ! systemctl enable auto_lkp.service; then
+		capture_error "Failed to enable auto_lkp.service, manual attention needed" "Check 'systemctl status auto_lkp.service' and 'journalctl -u auto_lkp.service' for details."
+	fi
+	if ! systemctl start auto_lkp.service; then
+		capture_error "Failed to start auto_lkp.service, manual attention needed" "Check 'systemctl status auto_lkp.service' and 'journalctl -u auto_lkp.service' for details. On SELinux-enforcing distros (CentOS/Rocky/Oracle/RHEL/Anolis/Euler/CloudOS), check 'ausearch -m avc -ts recent' for denials."
+	fi
 	echo "LKP service started. It will run automatically on system boot."
 	echo "To check the status of the service, use: sudo systemctl status auto_lkp.service"
 	echo "To stop the service, use: sudo systemctl stop auto_lkp.service"
