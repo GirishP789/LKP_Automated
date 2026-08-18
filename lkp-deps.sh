@@ -51,7 +51,8 @@ loading_animation() {
 	done
 }
 
-#finding the package manager available on the system
+# This script only supports apt-based (Ubuntu/Velinux) and dnf/yum-based
+# (CentOS/Euler/Anolis/CloudOS/Rocky/Oracle/Redhat) distros.
 installer=""
 check_package_manager() {
     if command -v apt &> /dev/null; then
@@ -62,14 +63,8 @@ check_package_manager() {
         installer="dnf"
     elif command -v yum &> /dev/null; then
         installer="yum"
-    elif command -v pacman &> /dev/null; then
-        installer="pacman"
-    elif command -v zypper &> /dev/null; then
-        installer="zypper"
-    elif command -v apk &> /dev/null; then
-        installer="apk"
     else
-        echo "Package Manager couldn't be recognized. Please contact the maintainer for support."
+        echo "Package Manager couldn't be recognized (only apt/dnf/yum are supported). Please contact the maintainer for support."
         exit 1
     fi
 }
@@ -77,26 +72,21 @@ check_package_manager
 echo "Detected Package Manager: $installer"
 echo "--------------------------------------------"
 
-# Canonical dependency names follow RPM (dnf/yum/zypper) conventions, since
-# that naming is shared by the majority of the officially supported distros
-# (CentOS, Euler, Anolis, CloudOS, Rocky Linux, Oracle, Redhat). The actual
-# list of packages, plus their per-package-manager overrides, lives in
-# dependencies/packages.txt so new dependencies can be added/renamed without
-# touching this script. See that file's header for the format.
-#
-# A resolved value of "" means the dependency is already bundled with
-# another package on that distro (e.g. Arch's "gcc" already includes the
-# C++ front-end), so it is safely skipped instead of failing.
+# apt/apt-get share the same package list ("apt" family), dnf/yum share
+# theirs ("yum" family). See dependencies/packages.txt for the actual list.
+case "$installer" in
+    apt|apt-get) pkg_family="apt" ;;
+    dnf|yum) pkg_family="yum" ;;
+esac
+
+# The list of OS packages lives in dependencies/packages.txt so new
+# dependencies can be added/renamed without touching this script. See that
+# file's header for the format.
 pkgs_list=()
-declare -A APT_PKG_MAP=()
-declare -A PACMAN_PKG_MAP=()
-declare -A ZYPPER_PKG_MAP=()
-declare -A APK_PKG_MAP=()
 
 load_packages_file() {
     local file="$1"
-    local current_pkg=""
-    local line manager value
+    local current_family="" line header
 
     if [[ ! -f "$file" ]]; then
         capture_error "Dependency file not found: $file" "The dependencies/ directory should ship alongside lkp-deps.sh."
@@ -107,27 +97,16 @@ load_packages_file() {
         line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
         [[ -z "$line" ]] && continue
 
-        if [[ "$line" =~ ^\[([A-Za-z0-9_.+-]+)\]$ ]]; then
-            current_pkg="${BASH_REMATCH[1]}"
-            pkgs_list+=("$current_pkg")
+        if [[ "$line" =~ ^\[([A-Za-z0-9_-]+)\]$ ]]; then
+            current_family="${BASH_REMATCH[1],,}"
             continue
         fi
 
-        if [[ -z "$current_pkg" ]]; then
-            continue
-        fi
-
-        if [[ "$line" =~ ^([a-zA-Z]+)=(.*)$ ]]; then
-            manager="${BASH_REMATCH[1]}"
-            value="${BASH_REMATCH[2]}"
-            [[ "$value" == "SKIP" ]] && value=""
-            case "$manager" in
-                apt) APT_PKG_MAP[$current_pkg]="$value" ;;
-                pacman) PACMAN_PKG_MAP[$current_pkg]="$value" ;;
-                zypper) ZYPPER_PKG_MAP[$current_pkg]="$value" ;;
-                apk) APK_PKG_MAP[$current_pkg]="$value" ;;
-                *) echo "Warning: unknown package manager '$manager' for [$current_pkg] in $file, ignoring." ;;
-            esac
+        # Only load packages under the family block matching the package
+        # manager actually detected on this system; everything else is
+        # ignored.
+        if [[ "$current_family" == "$pkg_family" ]]; then
+            pkgs_list+=("$line")
         fi
     done < "$file"
 }
@@ -156,32 +135,6 @@ load_gems_file "$GEMS_FILE"
 failed_pkgs=()
 failed_gems=()
 
-# Resolve a canonical dependency name into the correct package name(s) for
-# the current package manager. Prints nothing (skip) when the dependency is
-# already covered by another package on this distro.
-resolve_pkg_name() {
-    local canonical="$1"
-    local resolved
-    case "$installer" in
-        apt|apt-get)
-            resolved="${APT_PKG_MAP[$canonical]-$canonical}"
-            ;;
-        pacman)
-            resolved="${PACMAN_PKG_MAP[$canonical]-$canonical}"
-            ;;
-        zypper)
-            resolved="${ZYPPER_PKG_MAP[$canonical]-$canonical}"
-            ;;
-        apk)
-            resolved="${APK_PKG_MAP[$canonical]-$canonical}"
-            ;;
-        *)
-            resolved="$canonical"
-            ;;
-    esac
-    echo "$resolved"
-}
-
 is_installed() {
     local pkg="$1"
     case "$installer" in
@@ -191,15 +144,6 @@ is_installed() {
         dnf|yum)
             rpm -q "$pkg" &> /dev/null
             ;;
-        pacman)
-            pacman -Qi "$pkg" &> /dev/null
-            ;;
-        zypper)
-            rpm -q "$pkg" &> /dev/null
-            ;;
-        apk)
-            apk info -e "$pkg" &> /dev/null
-            ;;
         *)
             return 1
             ;;
@@ -207,8 +151,8 @@ is_installed() {
 }
 
 # perf's package name/availability is special-cased per distro: on Ubuntu it
-# is split per-kernel-version (linux-tools-$(uname -r)), everywhere else a
-# single "perf" package (or Arch's "linux-tools" group member) provides it.
+# is split per-kernel-version (linux-tools-$(uname -r)), while dnf/yum
+# provide it via a single "perf" package.
 install_perf() {
     if command -v perf &> /dev/null; then
         echo "perf already installed on the system, skipping......"
@@ -227,15 +171,6 @@ install_perf() {
             ;;
         yum)
             yum install -y perf &> /dev/null
-            ;;
-        pacman)
-            pacman -S --noconfirm --needed perf &> /dev/null
-            ;;
-        zypper)
-            zypper --non-interactive install perf &> /dev/null
-            ;;
-        apk)
-            apk add perf &> /dev/null
             ;;
     esac
     install_status=$?
@@ -258,18 +193,7 @@ print_status() {
 
     printf "%-30s : %s\n" "perf" "$(command -v perf &> /dev/null && echo Success || echo Failed)"
     for pkg in "${pkgs_list[@]}"; do
-        resolved=$(resolve_pkg_name "$pkg")
-        if [[ -z "$resolved" ]]; then
-            printf "%-30s : %s\n" "$pkg" "Skipped (bundled)"
-            continue
-        fi
-        status="Success"
-        for real_pkg in $resolved; do
-            if ! is_installed "$real_pkg"; then
-                status="Failed"
-            fi
-        done
-        printf "%-30s : %s\n" "$pkg" "$status"
+        printf "%-30s : %s\n" "$pkg" "$(is_installed "$pkg" && echo Success || echo Failed)"
     done
 
     echo " "
@@ -290,39 +214,31 @@ install_perf
 
 for pkg in "${pkgs_list[@]}"; do
     check_exit
-    resolved=$(resolve_pkg_name "$pkg")
 
-    if [[ -z "$resolved" ]]; then
-        echo "$pkg is already bundled/not applicable on this distro, skipping......"
+    if is_installed "$pkg"; then
+        echo "$pkg already installed on the system, skipping......"
         continue
     fi
 
-    for real_pkg in $resolved; do
-        if is_installed "$real_pkg"; then
-            echo "$real_pkg already installed on the system, skipping......"
-            continue
-        fi
-
-        loading_animation &
-        spinner_pid=$!
-        echo "Installing $real_pkg, please wait..."
-        if [[ $installer == "dnf" ]]; then
-            # --allowerasing lets dnf swap "minimal" variants (e.g.
-            # curl-minimal/libcurl-minimal on RHEL9+/Fedora) for the full
-            # package instead of failing with a file-conflict error.
-            dnf install -y --allowerasing "$real_pkg" &> /dev/null
-        else
-            "$installer" install -y "$real_pkg" &> /dev/null
-        fi
-        install_status=$?
-        kill "$spinner_pid" > /dev/null 2>&1
-        if [[ $install_status -ne 0 ]]; then
-            failed_pkgs+=("$real_pkg (for $pkg)")
-            echo "Failed to install $real_pkg"
-        else
-            echo "Successfully installed the $real_pkg"
-        fi
-    done
+    loading_animation &
+    spinner_pid=$!
+    echo "Installing $pkg, please wait..."
+    if [[ $installer == "dnf" ]]; then
+        # --allowerasing lets dnf swap "minimal" variants (e.g.
+        # curl-minimal/libcurl-minimal on RHEL9+/Fedora) for the full
+        # package instead of failing with a file-conflict error.
+        dnf install -y --allowerasing "$pkg" &> /dev/null
+    else
+        "$installer" install -y "$pkg" &> /dev/null
+    fi
+    install_status=$?
+    kill "$spinner_pid" > /dev/null 2>&1
+    if [[ $install_status -ne 0 ]]; then
+        failed_pkgs+=("$pkg")
+        echo "Failed to install $pkg"
+    else
+        echo "Successfully installed the $pkg"
+    fi
 done
 
 for gem in "${gems_list[@]}"; do

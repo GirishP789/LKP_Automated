@@ -33,7 +33,8 @@ capture_error() {
         exit 1
 }
 
-#finding the package manager available on the system
+# This script only supports apt-based (Ubuntu/Velinux) and dnf/yum-based
+# (CentOS/Euler/Anolis/CloudOS/Rocky/Oracle/Redhat) distros.
 check_package_manager() {
     if command -v apt &> /dev/null; then
         installer="apt"
@@ -43,14 +44,8 @@ check_package_manager() {
         installer="dnf"
     elif command -v yum &> /dev/null; then
         installer="yum"
-    elif command -v pacman &> /dev/null; then
-        installer="pacman"
-    elif command -v zypper &> /dev/null; then
-        installer="zypper"
-    elif command -v apk &> /dev/null; then
-        installer="apk"
     else
-        echo "Package Manager couldn't be recognized. Please contact the maintainer for support."
+        echo "Package Manager couldn't be recognized (only apt/dnf/yum are supported). Please contact the maintainer for support."
         exit 1
     fi
 }
