@@ -56,6 +56,23 @@ splits under `<lkp_dir>/splits` manually with `lkp run <file>.yaml`.
     $ sudo systemctl disable auto_lkp.service
 ```
 
+### Uninstalling
+
+```bash
+    $ sudo make uninstall
+```
+
+This removes everything the setup created, regardless of whether you originally chose the VM or
+Host option: the cloned lkp-tests source trees (this also breaks the `lkp`/`hackbench`/`ebizzy`/
+`unixbench` launchers, since they're symlinked into these trees), test result data under
+`/lkp/result`, the generated automation scripts/logs under `/var/lib` and `/var/log`, and the
+`auto_lkp.service` background service if it exists. It prompts for confirmation before removing
+anything.
+
+OS packages installed via `apt`/`dnf` (gcc, ruby, perf, etc.) are left installed, and
+`change-ulimit.service` and any `/etc/sudoers` changes are left untouched — remove those manually
+if you no longer need them.
+
 ### supported systems:
 
 Current version of this script only supports limited number of distros, these include
