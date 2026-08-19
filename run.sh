@@ -98,16 +98,50 @@ clone_lkp() {
 }
 
 support_addition() {
-    cp $lkp_dir/distro/installer/centos $lkp_dir/distro/installer/opencloudos
-    cp $lkp_dir/distro/installer/centos $lkp_dir/distro/installer/anolis
-    cp $lkp_dir/distro/installer/centos $lkp_dir/distro/installer/openeuler	
-	> $lkp_dir/distro/installer/opencloudos
-	> $lkp_dir/distro/installer/anolis
-	> $lkp_dir/distro/installer/openeuler
+    # lkp-tests doesn't ship distro/installer, distro/adaptation-pkg, or
+    # distro/adaptation entries for these RHEL-family distros, so they need
+    # to be generated here. All three are required:
+    #  - distro/installer/$distro is the actual "install these packages"
+    #    script lkp-exec/install execs.
+    #  - distro/adaptation-pkg/$distro maps names for the makepkg/benchmark
+    #    build path (get_dependency_packages called with PKG_TYPE=pkg).
+    #  - distro/adaptation/$distro/{default,<version>} maps generic
+    #    (Debian-style) dependency names to real package names for plain OS
+    #    package installs (get_dependency_packages called without a
+    #    PKG_TYPE). Without this, names like "build-essential"/"libc6-dev"
+    #    are passed straight through to dnf/yum unmapped and fail to
+    #    install, aborting "lkp install" with no clear error (its output is
+    #    normally discarded by install_lkp()).
+	#
+	# distro/installer/centos picks "dnf --allowerasing" vs plain "yum"
+	# based on $_system_version (from lib/detect-system.sh), and passes
+	# "$extra_option" quoted even when unset. lib/detect-system.sh has no
+	# case for opencloudos/anolis/openeuler (they ship /etc/<name>-release,
+	# not /etc/redhat-release), so _system_version stays "unknown", the
+	# version check silently takes the wrong (yum, no extra_option) branch,
+	# and the quoted-but-empty extra_option is passed to dnf as a literal
+	# empty argument, which makes dnf fail overall even though every real
+	# package installed fine. These distros are always modern dnf-based
+	# systems, so write a small fixed installer for them below instead of
+	# copying CentOS's version-sniffing (and, for them, broken) one.
+	for _d in opencloudos anolis openeuler; do
+		cat > $lkp_dir/distro/installer/$_d << 'EOSCRIPT'
+# epel-release is intentionally not installed here: these distros ship
+# their own extra-packages repo (e.g. EPOL) enabled by default, and
+# "epel-release" isn't a valid package name on them.
+dnf install -y --allowerasing $*
+EOSCRIPT
+		chmod +x $lkp_dir/distro/installer/$_d
+	done
 
 	cp $lkp_dir/distro/adaptation-pkg/centos $lkp_dir/distro/adaptation-pkg/opencloudos
 	cp $lkp_dir/distro/adaptation-pkg/centos $lkp_dir/distro/adaptation-pkg/anolis
 	cp $lkp_dir/distro/adaptation-pkg/centos $lkp_dir/distro/adaptation-pkg/openeuler
+
+	rm -rf $lkp_dir/distro/adaptation/opencloudos $lkp_dir/distro/adaptation/anolis $lkp_dir/distro/adaptation/openeuler
+	cp -r $lkp_dir/distro/adaptation/centos $lkp_dir/distro/adaptation/opencloudos
+	cp -r $lkp_dir/distro/adaptation/centos $lkp_dir/distro/adaptation/anolis
+	cp -r $lkp_dir/distro/adaptation/centos $lkp_dir/distro/adaptation/openeuler
 }
 
 loading_animation() {
@@ -152,6 +186,17 @@ install_lkp() {
 
 	if grep -q -i "velinux" /etc/os-release; then
 		sed -i 's/linux-libc-dev:i386/# linux-libc-dev:i386/g' $lkp_dir/distro/depends/lkp-dev
+		sed -i 's/libc6-dev:i386/# libc6-dev:i386/g' $lkp_dir/distro/depends/lkp-dev
+	fi
+
+	# RHEL9-family distros (CentOS/Euler/Anolis/CloudOS/Rocky/Oracle/Redhat 9)
+	# dropped i686/multilib packages from their default repos entirely, so
+	# glibc-devel.i686/glibc-static.i686 (pulled in via the generic
+	# "libc6-dev:i386" dependency in lkp-dev, mapped through
+	# distro/adaptation/*/default) can never be installed there. Left as-is
+	# this aborts the whole "lkp install" step with no visible error, since
+	# its output is normally discarded below.
+	if command -v yum &> /dev/null; then
 		sed -i 's/libc6-dev:i386/# libc6-dev:i386/g' $lkp_dir/distro/depends/lkp-dev
 	fi
 
