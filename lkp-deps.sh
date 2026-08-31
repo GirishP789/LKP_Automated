@@ -201,7 +201,7 @@ print_status() {
     echo "Gems Installation Status"
     echo "-----------------------------------------"
     for gem in "${gems_list[@]}"; do
-	if ! gem list -i $(echo "$gem" | awk '{print $1}') &> /dev/null; then
+	if ! gem list -i $gem &> /dev/null; then
 	    printf "%-30s : %s\n" "$gem" "Failed"
 	else
 	    printf "%-30s : %s\n" "$gem" "Success"
@@ -243,7 +243,13 @@ done
 
 for gem in "${gems_list[@]}"; do
     check_exit
-    if ! gem list -i $(echo "$gem" | awk '{print $1}') &> /dev/null; then
+    # Pass the full spec (name plus any "-v VERSION"), not just the bare
+    # name, to "gem list -i": some gems (e.g. bundler, json, bigdecimal)
+    # ship as Ruby "default gems" bundled with the interpreter itself, so
+    # "gem list -i bundler" is true even when the specific pinned version
+    # this script wants isn't actually installed, causing it to be
+    # silently skipped.
+    if ! gem list -i $gem &> /dev/null; then
         loading_animation &
         spinner_pid=$!
         echo "Installing $gem, please wait..."
@@ -274,6 +280,14 @@ fi
 
 
 if grep -q -i "euler" /etc/os-release; then
-		sudo $installer remove -y rubygem-bundler
-        sudo gem install bundler -v 2.3.26
+	# openEuler's system Ruby ships bundler as a "default gem" (e.g. 2.4.10)
+	# with no version pin needed by lkp-tests (it has no Gemfile.lock yet).
+	# Installing an older pinned bundler version (previously "-v 2.3.26")
+	# leaves that default gem's version as the highest one on the system;
+	# since default gems have no real libexec/ directory on disk,
+	# RubyGems' unconstrained `bundle` binstub picks it and crashes with
+	# "cannot load such file -- .../libexec/bundle". Installing the latest
+	# bundler instead guarantees it outranks the phantom default gem so
+	# the binstub resolves to the real, working install.
+	sudo gem install bundler
 fi
