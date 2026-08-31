@@ -21,7 +21,7 @@ echo "==========================================================================
 echo "This will remove, regardless of whether the VM or Host option was originally used:"
 echo "  - The cloned lkp-tests source trees (this also breaks the lkp/hackbench/ebizzy/"
 echo "    unixbench launchers, since they are symlinked into these trees)"
-echo "  - Test result data under /lkp/result"
+echo "  - All lkp-tests data under /lkp (result, benchmarks, data, paths)"
 echo "  - The auto_lkp.service background service, if present"
 echo "  - Generated automation scripts/logs under /var/lib and /var/log"
 echo ""
@@ -64,8 +64,12 @@ echo "Removing lkp-tests source trees..."
 rm -rf /var/lib/lkp-tests /var/lib/.lkp-tests
 rm -rf "$loc/lkp-tests"
 
-echo "Removing test result data..."
-rm -rf /lkp/result
+echo "Removing test result, benchmark, and path data..."
+# /lkp is entirely owned by lkp-tests: result (test output), benchmarks
+# (compiled benchmark binaries/libs), data and paths (KTEST_DATA_DIR /
+# KTEST_PATHS_DIR from lib/constant.sh) are all created by this repo's
+# install process, so the whole tree is safe to remove.
+rm -rf /lkp
 
 # Clean up any now-dangling launcher symlinks (e.g. /usr/local/bin/lkp) left
 # behind after removing the directories they pointed into.
