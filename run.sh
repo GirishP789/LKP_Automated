@@ -405,6 +405,12 @@ rm -rf /lkp/result/hackbench/*
 rm -rf /lkp/result/ebizzy/*
 rm -rf /lkp/result/unixbench/*
 
+# Drop in the results-summarizer helper so it's available at /lkp/result
+# alongside the benchmark output it parses.
+mkdir -p /lkp/result
+cp -f $loc/result.sh /lkp/result/result.sh
+chmod +x /lkp/result/result.sh
+
 # Proceed to create the service file only if installation type is 1 (VM)
 if [[ $installation_type == "1" ]]; then
 	echo "================================================================================"
