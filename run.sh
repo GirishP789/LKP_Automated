@@ -144,6 +144,151 @@ EOSCRIPT
 	cp -r $lkp_dir/distro/adaptation/centos $lkp_dir/distro/adaptation/openeuler
 }
 
+####################################################################
+# Rocky Linux 10 (EL10) specific compatibility patches.
+#
+# Rocky Linux 10's repos (base + EPEL) are still filling out compared to
+# the rest of the RHEL family this repo has already been tested/verified
+# against (Anolis, OpenEuler, OpenCloudOS -- all EL9-based -- plus Ubuntu),
+# so a handful of optional/incidental lkp-tests dependencies that are
+# genuinely available on those systems are missing specifically on Rocky
+# Linux 10. Every function in this region is only ever invoked from
+# apply_rocky_linux_patches() at the bottom, which itself is a no-op
+# unless is_rocky_linux() is true, so none of this can change behavior on
+# any distro other than Rocky Linux 10, even if one of these turns out to
+# be wrong.
+####################################################################
+
+is_rocky_linux() {
+	grep -qi '^ID="\?rocky"\?$' /etc/os-release 2>/dev/null
+}
+
+# hackbench.c and cyclictest.c both live in the upstream rt-tests repo,
+# which three separate lkp-tests PKGBUILDs (rt-tests, hackbench,
+# cyclictest) each independently git-clone fresh from a live, unpinned
+# upstream URL ("pkgver=git", as opposed to lkp-tests itself which
+# clone_lkp() pins to a fixed commit) and build. Upstream has
+# intermittently shipped src/cyclictest/cyclictest.c using bool/true/false
+# without #include <stdbool.h>, which fails to compile under any distro or
+# GCC version and aborts whichever of these three "lkp install" steps
+# happens to trigger the build -- unrelated to the actual distro or
+# benchmark being installed. Patch it into all three defensively on every
+# run rather than only on the one that happened to hit it first.
+patch_rt_tests() {
+	local pkgbuild
+	for pkgbuild in "$lkp_dir/programs/rt-tests/pkg/PKGBUILD" "$lkp_dir/programs/hackbench/pkg/PKGBUILD" "$lkp_dir/programs/cyclictest/pkg/PKGBUILD"; do
+		if [[ -f "$pkgbuild" ]] && ! grep -q "stdbool" "$pkgbuild"; then
+			sed -i '/cd "\$srcdir\//a\	grep -q "#include <stdbool.h>" src/cyclictest/cyclictest.c || sed -i "/#include <cpuid.h>/a #include <stdbool.h>" src/cyclictest/cyclictest.c' "$pkgbuild"
+		fi
+	done
+}
+
+# Returns success if $1 is already installed, or is installable from a
+# currently-enabled repo, on this system. Used to decide whether a
+# depends-file entry needs stripping on *this* specific RHEL-family
+# system, instead of blanket-stripping it for the whole yum family -- e.g.
+# capstone-devel/acpica-tools are genuinely available on Anolis/OpenEuler/
+# OpenCloudOS (EL9-family) and should keep installing there; they're just
+# missing on Rocky Linux 10 / EL10, which is still filling out its repos.
+yum_pkg_resolvable() {
+	local pkg="$1"
+	rpm -q "$pkg" &> /dev/null && return 0
+	if command -v dnf &> /dev/null; then
+		dnf list available "$pkg" &> /dev/null && return 0
+	elif command -v yum &> /dev/null; then
+		yum list available "$pkg" &> /dev/null && return 0
+	fi
+	return 1
+}
+
+# Many programs/*/pkg/depends(-dev) files across lkp-tests list generic
+# (Debian-style) names for optional perf analysis add-ons (JDK symbol
+# demangling, capstone disassembly, clang/llvm-based annotation,
+# babeltrace/CTF trace support) that get mapped to real RPM names via
+# distro/adaptation/centos/default. These aren't unique to perf's own
+# depends file -- perf-c2c, perf-mem, perf-node, perf-probe, perf-profile,
+# perf-record-report, perf-report-srcline, perf-sanity-tests, perf-stat,
+# perf-bench-* and others each ship their own copy of the same list, and
+# any job's default monitors can pull in any of these sub-packages. dnf
+# aborts the whole build over these purely optional add-ons if any one is
+# unresolvable, which has nothing to do with hackbench/ebizzy/unixbench
+# (the benchmarks this repo cares about), so scan every depends/depends-dev
+# file under programs/ and drop whichever of these are actually
+# unresolvable on *this* system rather than assuming the whole RHEL family
+# lacks them, and rather than only patching perf's own two files.
+patch_perf_depends() {
+	local depfile generic real
+	# generic-name:real-RPM-name pairs from distro/adaptation/centos/default
+	# (shared verbatim by the whole RHEL family -- Anolis/OpenEuler/
+	# OpenCloudOS get their own copy via support_addition(), Rocky/RHEL/
+	# Oracle symlink straight to it). Available on EL9-family systems, but
+	# missing as of Rocky Linux 10 / EL10's still-filling-out repos.
+	local generics=(libcapstone-dev default-jdk libbabeltrace-dev)
+	local reals=(capstone-devel java-1.8.0-openjdk-devel libbabeltrace-devel)
+	# These have no adaptation/centos/default entry at all, so they're
+	# passed straight through to dnf unmapped/misnamed on every RHEL-family
+	# distro -- always safe to drop, no per-system availability check
+	# needed (they were never going to resolve as literal package names).
+	local always_drop=(libclang-dev libdw1 llvm-dev)
+
+	while IFS= read -r -d '' depfile; do
+		local i
+		for i in "${!generics[@]}"; do
+			generic="${generics[$i]}"
+			real="${reals[$i]}"
+			yum_pkg_resolvable "$real" || sed -i "s/^${generic}\$/# ${generic}/" "$depfile"
+		done
+		for generic in "${always_drop[@]}"; do
+			sed -i "s/^${generic}\$/# ${generic}/" "$depfile"
+		done
+	done < <(find "$lkp_dir/programs" -path '*/pkg/depends*' -type f -print0 2>/dev/null)
+}
+
+# turbostat (a monitor lkp-tests builds from source to record CPU
+# power-state stats during test runs -- unrelated to the actual
+# hackbench/ebizzy/unixbench benchmark results) depends on "acpica-tools"
+# and "acpidump". "acpica-tools" is genuinely available on EL9-family
+# systems (Anolis/OpenEuler/OpenCloudOS), just missing on Rocky Linux 10 /
+# EL10, so only strip whichever of these are actually unresolvable on
+# *this* system. Since turbostat's dependency check runs before the actual
+# benchmark's own build step in the same "lkp install" job, leaving either
+# one unresolvable takes hackbench/ebizzy/unixbench's install down with it
+# even though turbostat itself is optional.
+patch_turbostat_depends() {
+	local depfile="$lkp_dir/programs/turbostat/pkg/depends"
+	[[ -f "$depfile" ]] || return
+	yum_pkg_resolvable acpica-tools || sed -i 's/^acpica-tools$/# acpica-tools/' "$depfile"
+	yum_pkg_resolvable acpidump || sed -i 's/^acpidump$/# acpidump/' "$depfile"
+}
+
+# "libipc-run-perl" maps to "perl-IPC-Run" on the whole RHEL family
+# (distro/adaptation/centos/default and everything that inherits from it,
+# e.g. Rocky). That CPAN package is available on EL9-family systems
+# (Anolis/OpenEuler/OpenCloudOS), but has no RPM at all in Rocky Linux/
+# EL10's repos (base or EPEL), so dnf aborts the *entire* "lkp install"
+# transaction there with "No match for argument: perl-IPC-Run" -- taking
+# otherwise-available packages like fakeroot down with it. The IPC::Run
+# perl module isn't actually referenced anywhere in lkp-tests' runtime
+# scripts, so dropping it is harmless either way, but only strip it where
+# it's actually unresolvable rather than assuming the whole RHEL family
+# lacks it.
+patch_perl_ipc_run_depends() {
+	yum_pkg_resolvable perl-IPC-Run || sed -i 's/libipc-run-perl/# libipc-run-perl/g' "$lkp_dir/distro/depends/lkp-dev"
+}
+
+# Single entry point for this whole region -- called once from
+# install_lkp(). Everything above is a plain function definition and has
+# no effect until called from here, and this is a no-op unless
+# is_rocky_linux() is true, so this region can never affect any other
+# distro's install.
+apply_rocky_linux_patches() {
+	is_rocky_linux || return 0
+	patch_rt_tests
+	patch_perf_depends
+	patch_turbostat_depends
+	patch_perl_ipc_run_depends
+}
+
 loading_animation() {
     local delay=0.1
     local spinstr='|/-\'
@@ -199,6 +344,11 @@ install_lkp() {
 	if command -v yum &> /dev/null; then
 		sed -i 's/libc6-dev:i386/# libc6-dev:i386/g' $lkp_dir/distro/depends/lkp-dev
 	fi
+
+	# See the "Rocky Linux 10 (EL10) specific compatibility patches" region
+	# above -- everything it does is gated on is_rocky_linux() internally,
+	# so this is a no-op on every other already-tested distro.
+	apply_rocky_linux_patches
 
 	loading_animation &
     spinner_pid=$!
