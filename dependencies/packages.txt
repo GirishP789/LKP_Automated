@@ -1,0 +1,135 @@
+# OS package dependencies for lkp-deps.sh
+# =========================================
+#
+# Packages are grouped by package manager family:
+#
+#   [apt]     - Ubuntu/Velinux.
+#   [yum]     - CentOS/Euler/Anolis/CloudOS/Rocky/Oracle/Redhat (also
+#               matches dnf).
+#   pkg-name  - one real package name per line, exactly as the package
+#               manager expects it. No translation/lookup happens: what
+#               you write here is what gets installed.
+#
+# lkp-deps.sh only reads the block matching whatever package manager it
+# detects on the system.
+#
+# Lines starting with # are comments, blank lines are ignored.
+#
+# To add a dependency: find the right [family] block below and add a line
+# with the real package name. If the same logical dependency needs a
+# different name on apt vs. yum, add it under both.
+#
+# Note: "perf" is intentionally NOT listed here. Its package name is
+# kernel-version-specific on Ubuntu/Debian (linux-tools-$(uname -r)), so it
+# is installed by the dedicated install_perf() function in lkp-deps.sh
+# instead of from this file.
+
+[apt]
+git
+wget
+make
+gcc
+time
+tar
+bc
+pkg-config
+libtool
+ca-certificates
+rsync
+cpio
+ruby
+ruby-dev
+g++
+cmake
+automake
+autoconf
+libarchive-tools
+libturbojpeg0-dev
+libslang2-dev
+libunwind-dev
+libcap-dev
+libbabeltrace1
+libbabeltrace-dev
+libnuma-dev
+flex
+python3-dev
+openjdk-17-jdk
+fakeroot
+libssl-dev
+openssl
+libcurl4-openssl-dev
+patch
+bison
+libelf-dev
+libdw-dev
+libx11-dev
+systemtap-sdt-dev
+libperl-dev
+perl
+libgl1-mesa-dev
+libxext-dev
+libcapstone-dev
+clang
+libclang-dev
+libpfm4
+libpfm4-dev
+libipc-run-perl
+libxslt1-dev
+llvm-dev
+
+[yum]
+git
+wget
+make
+gcc
+time
+tar
+bc
+pkg-config
+libtool
+ca-certificates
+rsync
+cpio
+rubygems-devel
+ruby-devel
+rubygem-psych
+ruby
+gcc-c++
+cmake
+automake
+autoconf
+bsdtar
+glibc-static
+turbojpeg-devel
+slang-devel
+libunwind-devel
+libcap-devel
+libbabeltrace
+libbabeltrace-devel
+numactl-devel
+flex
+python3-devel
+java-17-openjdk
+fakeroot
+openssl-devel
+openssl
+libcurl-devel
+patch
+bison
+elfutils-libelf-devel
+elfutils-devel
+libX11-devel
+systemtap-sdt-devel
+perl-ExtUtils-Embed
+perl-core
+perl-FindBin
+mesa-libGL-devel
+libXext-devel
+capstone-devel
+clang
+clang-devel
+libpfm
+libpfm-devel
+perl-IPC-Run
+libxslt-devel
+llvm-devel

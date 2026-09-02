@@ -38,10 +38,17 @@ echo "test_cases=(" >> "$LKP_SCRIPT"
 files=$(ls "$lkp_dir/splits/")
 file_array=($files)
 
+# Only real jobfiles (*.yaml) are valid arguments to "lkp run". Without this
+# filter, non-yaml entries that "lkp" itself drops into splits/ during a run
+# (e.g. a "result" symlink to the latest output dir, which can end up
+# dangling) get globbed into the array too. "lkp run" then exits non-zero on
+# that entry and, since this whole script runs under "set -euo pipefail",
+# aborts the entire service before any test cases execute.
+
 # Append test cases starting with 'h' first
 for test_case in "${file_array[@]}"
 do
-    if [[ $test_case == h* ]]; then
+    if [[ $test_case == h*.yaml ]]; then
         echo "    \"lkp run $lkp_dir/splits/$test_case\"" >> "$LKP_SCRIPT"
     fi
 done
@@ -49,7 +56,7 @@ done
 # Append test cases starting with 'e' second
 for test_case in "${file_array[@]}"
 do
-    if [[ $test_case == e* ]]; then
+    if [[ $test_case == e*.yaml ]]; then
         echo "    \"lkp run $lkp_dir/splits/$test_case\"" >> "$LKP_SCRIPT"
     fi
 done
@@ -57,7 +64,7 @@ done
 # Append all remaining test cases last
 for test_case in "${file_array[@]}"
 do
-    if [[ $test_case != h* && $test_case != e* ]]; then
+    if [[ $test_case == *.yaml && $test_case != h*.yaml && $test_case != e*.yaml ]]; then
         echo "    \"lkp run $lkp_dir/splits/$test_case\"" >> "$LKP_SCRIPT"
     fi
 done

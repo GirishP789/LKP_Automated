@@ -1,0 +1,32 @@
+# Ruby gem dependencies for lkp-deps.sh
+# =======================================
+#
+# One gem per line. Lines starting with # are comments, blank lines are
+# ignored. A version (or any other gem-install flag) can be pinned by adding
+# it after the gem name, e.g.:
+#
+#   bundler -v 2.5.19
+#
+# To add a new gem dependency, just add a new line below.
+
+text-table
+activesupport -v 6.0.0
+bigdecimal
+json
+racc
+parser
+tins
+term-ansicolor
+rubocop-ast
+rubocop
+flex
+bundler -v 2.5.19
+
+# NOTE: don't add an unpinned "git" gem here. lkp-tests' own Gemfile pins
+# "git" to "~> 1.7.0" and `bundle install` (run separately by lkp-tests
+# itself during `lkp install`) already installs that version into this same
+# shared gem path. Installing a second, newer "git" gem (e.g. latest from
+# rubygems.org) here makes Ruby's non-bundler-scoped `require 'git'` (used
+# by `lkp split-job` and friends) resolve to the newest installed version
+# instead, which can be ABI/API-incompatible with lkp-tests' own vendored
+# lib/git.rb and crash with "Base is not a class (TypeError)" or similar.

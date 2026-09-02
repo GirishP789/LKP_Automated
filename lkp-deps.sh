@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Resolve the script's own directory so it can find dependencies/*.txt
+# regardless of the caller's current working directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+PACKAGES_FILE="$SCRIPT_DIR/dependencies/packages.txt"
+GEMS_FILE="$SCRIPT_DIR/dependencies/gems.txt"
+
 STOP_FILE="/tmp/stop_lkp_script"
 
 check_exit() {
@@ -45,7 +51,8 @@ loading_animation() {
 	done
 }
 
-#finding the package manager available on the system
+# This script only supports apt-based (Ubuntu/Velinux) and dnf/yum-based
+# (CentOS/Euler/Anolis/CloudOS/Rocky/Oracle/Redhat) distros.
 installer=""
 check_package_manager() {
     if command -v apt &> /dev/null; then
@@ -56,14 +63,8 @@ check_package_manager() {
         installer="dnf"
     elif command -v yum &> /dev/null; then
         installer="yum"
-    elif command -v pacman &> /dev/null; then
-        installer="pacman"
-    elif command -v zypper &> /dev/null; then
-        installer="zypper"
-    elif command -v apk &> /dev/null; then
-        installer="apk"
     else
-        echo "Package Manager couldn't be recognized. Please contact the maintainer for support."
+        echo "Package Manager couldn't be recognized (only apt/dnf/yum are supported). Please contact the maintainer for support."
         exit 1
     fi
 }
@@ -71,177 +72,68 @@ check_package_manager
 echo "Detected Package Manager: $installer"
 echo "--------------------------------------------"
 
-# Canonical dependency names below follow RPM (dnf/yum/zypper) conventions, since
-# that naming is shared by the majority of the officially supported distros
-# (CentOS, Euler, Anolis, CloudOS, Rocky Linux, Oracle, Redhat). The
-# *_PKG_MAP arrays below translate a canonical name into the correct package
-# name for distros that use a different package manager/naming convention
-# (Ubuntu/Velinux via apt, Arch Linux via pacman). zypper/apk are not among
-# the officially supported distros but are mapped on a best-effort basis.
-#
-# A mapped value of "" means the dependency is already bundled with another
-# package on that distro (e.g. Arch's "gcc" already includes the C++
-# front-end), so it is safely skipped instead of failing.
-pkgs_list=(git wget make gcc time tar bc pkg-config libtool ca-certificates rsync cpio \
-    rubygems-devel ruby-devel rubygem-psych ruby gcc-c++ cmake automake autoconf bsdtar \
-    glibc-static turbojpeg-devel slang-devel libunwind-devel libcap-devel libbabeltrace \
-    libbabeltrace-devel numactl-devel flex python3-devel java-17-openjdk fakeroot \
-    openssl-devel openssl libcurl-devel patch bison elfutils-libelf-devel elfutils-devel \
-    libX11-devel systemtap-sdt-devel perl-ExtUtils-Embed perl-core perl-FindBin \
-    mesa-libGL-devel libXext-devel capstone-devel clang clang-devel libpfm libpfm-devel \
-    perl-IPC-Run libxslt-devel llvm-devel)
+# apt/apt-get share the same package list ("apt" family), dnf/yum share
+# theirs ("yum" family). See dependencies/packages.txt for the actual list.
+case "$installer" in
+    apt|apt-get) pkg_family="apt" ;;
+    dnf|yum) pkg_family="yum" ;;
+esac
 
-declare -A APT_PKG_MAP=(
-    [rubygems-devel]=""
-    [ruby-devel]="ruby-dev"
-    [rubygem-psych]=""
-    [gcc-c++]="g++"
-    [bsdtar]="libarchive-tools"
-    [glibc-static]=""
-    [turbojpeg-devel]="libturbojpeg0-dev"
-    [slang-devel]="libslang2-dev"
-    [libunwind-devel]="libunwind-dev"
-    [libcap-devel]="libcap-dev"
-    [libbabeltrace]="libbabeltrace1"
-    [libbabeltrace-devel]="libbabeltrace-dev"
-    [numactl-devel]="libnuma-dev"
-    [python3-devel]="python3-dev"
-    [java-17-openjdk]="openjdk-17-jdk"
-    [openssl-devel]="libssl-dev"
-    [libcurl-devel]="libcurl4-openssl-dev"
-    [elfutils-libelf-devel]="libelf-dev"
-    [elfutils-devel]="libdw-dev"
-    [libX11-devel]="libx11-dev"
-    [systemtap-sdt-devel]="systemtap-sdt-dev"
-    [perl-ExtUtils-Embed]="libperl-dev"
-    [perl-core]="perl"
-    [perl-FindBin]="perl"
-    [mesa-libGL-devel]="libgl1-mesa-dev"
-    [libXext-devel]="libxext-dev"
-    [capstone-devel]="libcapstone-dev"
-    [clang-devel]="libclang-dev"
-    [libpfm]="libpfm4"
-    [libpfm-devel]="libpfm4-dev"
-    [perl-IPC-Run]="libipc-run-perl"
-    [libxslt-devel]="libxslt1-dev"
-    [llvm-devel]="llvm-dev"
-)
+# The list of OS packages lives in dependencies/packages.txt so new
+# dependencies can be added/renamed without touching this script. See that
+# file's header for the format.
+pkgs_list=()
 
-declare -A PACMAN_PKG_MAP=(
-    [rubygems-devel]="ruby"
-    [ruby-devel]="ruby"
-    [rubygem-psych]="ruby"
-    [gcc-c++]=""
-    [bsdtar]=""
-    [glibc-static]=""
-    [turbojpeg-devel]="libjpeg-turbo"
-    [slang-devel]="slang"
-    [libunwind-devel]="libunwind"
-    [libcap-devel]="libcap"
-    [libbabeltrace]="babeltrace"
-    [libbabeltrace-devel]="babeltrace"
-    [numactl-devel]="numactl"
-    [python3-devel]="python"
-    [java-17-openjdk]="jdk17-openjdk"
-    [openssl-devel]="openssl"
-    [libcurl-devel]="curl"
-    [elfutils-libelf-devel]="libelf"
-    [elfutils-devel]="elfutils"
-    [libX11-devel]="libx11"
-    [systemtap-sdt-devel]="systemtap"
-    [perl-ExtUtils-Embed]="perl"
-    [perl-core]="perl"
-    [perl-FindBin]="perl"
-    [mesa-libGL-devel]="mesa"
-    [libXext-devel]="libxext"
-    [capstone-devel]="capstone"
-    [clang-devel]=""
-    [libpfm]="libpfm"
-    [libpfm-devel]="libpfm"
-    [perl-IPC-Run]="perl-ipc-run"
-    [libxslt-devel]="libxslt"
-    [llvm-devel]="llvm"
-)
+load_packages_file() {
+    local file="$1"
+    local current_family="" line header
 
-# openSUSE (zypper) mostly follows RPM naming already used as the canonical
-# name, only override the handful of packages known to differ.
-declare -A ZYPPER_PKG_MAP=(
-    [glibc-static]="glibc-devel-static"
-    [turbojpeg-devel]="libjpeg8-devel"
-    [libbabeltrace]="babeltrace"
-    [libbabeltrace-devel]="babeltrace-devel"
-    [capstone-devel]="capstone-devel"
-    [perl-IPC-Run]="perl-IPC-Run"
-)
+    if [[ ! -f "$file" ]]; then
+        capture_error "Dependency file not found: $file" "The dependencies/ directory should ship alongside lkp-deps.sh."
+    fi
 
-# Alpine (apk) is not officially supported; best-effort mapping using its
-# "-dev" suffix convention (closer to Debian than RPM).
-declare -A APK_PKG_MAP=(
-    [rubygems-devel]=""
-    [ruby-devel]="ruby-dev"
-    [rubygem-psych]=""
-    [gcc-c++]="g++"
-    [bsdtar]=""
-    [glibc-static]=""
-    [turbojpeg-devel]="libjpeg-turbo-dev"
-    [slang-devel]="slang-dev"
-    [libunwind-devel]="libunwind-dev"
-    [libcap-devel]="libcap-dev"
-    [libbabeltrace]="babeltrace"
-    [libbabeltrace-devel]="babeltrace-dev"
-    [numactl-devel]="numactl-dev"
-    [python3-devel]="python3-dev"
-    [java-17-openjdk]="openjdk17"
-    [openssl-devel]="openssl-dev"
-    [libcurl-devel]="curl-dev"
-    [elfutils-libelf-devel]="elfutils-dev"
-    [elfutils-devel]="elfutils-dev"
-    [libX11-devel]="libx11-dev"
-    [systemtap-sdt-devel]=""
-    [perl-ExtUtils-Embed]="perl-dev"
-    [perl-core]="perl"
-    [perl-FindBin]="perl"
-    [mesa-libGL-devel]="mesa-dev"
-    [libXext-devel]="libxext-dev"
-    [capstone-devel]="capstone-dev"
-    [clang-devel]="clang-dev"
-    [libpfm]="libpfm4"
-    [libpfm-devel]="libpfm4-dev"
-    [perl-IPC-Run]=""
-    [libxslt-devel]="libxslt-dev"
-    [llvm-devel]="llvm-dev"
-)
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        [[ -z "$line" ]] && continue
 
-gems_list=(text-table "activesupport -v 6.0.0" bigdecimal json racc parser tins term-ansicolor rubocop-ast rubocop flex "bundler -v 2.5.19" git)
+        if [[ "$line" =~ ^\[([A-Za-z0-9_-]+)\]$ ]]; then
+            current_family="${BASH_REMATCH[1],,}"
+            continue
+        fi
+
+        # Only load packages under the family block matching the package
+        # manager actually detected on this system; everything else is
+        # ignored.
+        if [[ "$current_family" == "$pkg_family" ]]; then
+            pkgs_list+=("$line")
+        fi
+    done < "$file"
+}
+
+gems_list=()
+
+load_gems_file() {
+    local file="$1"
+    local line
+
+    if [[ ! -f "$file" ]]; then
+        capture_error "Dependency file not found: $file" "The dependencies/ directory should ship alongside lkp-deps.sh."
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        [[ -z "$line" ]] && continue
+        gems_list+=("$line")
+    done < "$file"
+}
+
+load_packages_file "$PACKAGES_FILE"
+load_gems_file "$GEMS_FILE"
 
 failed_pkgs=()
 failed_gems=()
-
-# Resolve a canonical dependency name into the correct package name(s) for
-# the current package manager. Prints nothing (skip) when the dependency is
-# already covered by another package on this distro.
-resolve_pkg_name() {
-    local canonical="$1"
-    local resolved
-    case "$installer" in
-        apt|apt-get)
-            resolved="${APT_PKG_MAP[$canonical]-$canonical}"
-            ;;
-        pacman)
-            resolved="${PACMAN_PKG_MAP[$canonical]-$canonical}"
-            ;;
-        zypper)
-            resolved="${ZYPPER_PKG_MAP[$canonical]-$canonical}"
-            ;;
-        apk)
-            resolved="${APK_PKG_MAP[$canonical]-$canonical}"
-            ;;
-        *)
-            resolved="$canonical"
-            ;;
-    esac
-    echo "$resolved"
-}
 
 is_installed() {
     local pkg="$1"
@@ -252,15 +144,6 @@ is_installed() {
         dnf|yum)
             rpm -q "$pkg" &> /dev/null
             ;;
-        pacman)
-            pacman -Qi "$pkg" &> /dev/null
-            ;;
-        zypper)
-            rpm -q "$pkg" &> /dev/null
-            ;;
-        apk)
-            apk info -e "$pkg" &> /dev/null
-            ;;
         *)
             return 1
             ;;
@@ -268,8 +151,8 @@ is_installed() {
 }
 
 # perf's package name/availability is special-cased per distro: on Ubuntu it
-# is split per-kernel-version (linux-tools-$(uname -r)), everywhere else a
-# single "perf" package (or Arch's "linux-tools" group member) provides it.
+# is split per-kernel-version (linux-tools-$(uname -r)), while dnf/yum
+# provide it via a single "perf" package.
 install_perf() {
     if command -v perf &> /dev/null; then
         echo "perf already installed on the system, skipping......"
@@ -288,15 +171,6 @@ install_perf() {
             ;;
         yum)
             yum install -y perf &> /dev/null
-            ;;
-        pacman)
-            pacman -S --noconfirm --needed perf &> /dev/null
-            ;;
-        zypper)
-            zypper --non-interactive install perf &> /dev/null
-            ;;
-        apk)
-            apk add perf &> /dev/null
             ;;
     esac
     install_status=$?
@@ -319,18 +193,7 @@ print_status() {
 
     printf "%-30s : %s\n" "perf" "$(command -v perf &> /dev/null && echo Success || echo Failed)"
     for pkg in "${pkgs_list[@]}"; do
-        resolved=$(resolve_pkg_name "$pkg")
-        if [[ -z "$resolved" ]]; then
-            printf "%-30s : %s\n" "$pkg" "Skipped (bundled)"
-            continue
-        fi
-        status="Success"
-        for real_pkg in $resolved; do
-            if ! is_installed "$real_pkg"; then
-                status="Failed"
-            fi
-        done
-        printf "%-30s : %s\n" "$pkg" "$status"
+        printf "%-30s : %s\n" "$pkg" "$(is_installed "$pkg" && echo Success || echo Failed)"
     done
 
     echo " "
@@ -338,7 +201,7 @@ print_status() {
     echo "Gems Installation Status"
     echo "-----------------------------------------"
     for gem in "${gems_list[@]}"; do
-	if ! gem list -i $(echo "$gem" | awk '{print $1}') &> /dev/null; then
+	if ! gem list -i $gem &> /dev/null; then
 	    printf "%-30s : %s\n" "$gem" "Failed"
 	else
 	    printf "%-30s : %s\n" "$gem" "Success"
@@ -351,44 +214,42 @@ install_perf
 
 for pkg in "${pkgs_list[@]}"; do
     check_exit
-    resolved=$(resolve_pkg_name "$pkg")
 
-    if [[ -z "$resolved" ]]; then
-        echo "$pkg is already bundled/not applicable on this distro, skipping......"
+    if is_installed "$pkg"; then
+        echo "$pkg already installed on the system, skipping......"
         continue
     fi
 
-    for real_pkg in $resolved; do
-        if is_installed "$real_pkg"; then
-            echo "$real_pkg already installed on the system, skipping......"
-            continue
-        fi
-
-        loading_animation &
-        spinner_pid=$!
-        echo "Installing $real_pkg, please wait..."
-        if [[ $installer == "dnf" ]]; then
-            # --allowerasing lets dnf swap "minimal" variants (e.g.
-            # curl-minimal/libcurl-minimal on RHEL9+/Fedora) for the full
-            # package instead of failing with a file-conflict error.
-            dnf install -y --allowerasing "$real_pkg" &> /dev/null
-        else
-            "$installer" install -y "$real_pkg" &> /dev/null
-        fi
-        install_status=$?
-        kill "$spinner_pid" > /dev/null 2>&1
-        if [[ $install_status -ne 0 ]]; then
-            failed_pkgs+=("$real_pkg (for $pkg)")
-            echo "Failed to install $real_pkg"
-        else
-            echo "Successfully installed the $real_pkg"
-        fi
-    done
+    loading_animation &
+    spinner_pid=$!
+    echo "Installing $pkg, please wait..."
+    if [[ $installer == "dnf" ]]; then
+        # --allowerasing lets dnf swap "minimal" variants (e.g.
+        # curl-minimal/libcurl-minimal on RHEL9+/Fedora) for the full
+        # package instead of failing with a file-conflict error.
+        dnf install -y --allowerasing "$pkg" &> /dev/null
+    else
+        "$installer" install -y "$pkg" &> /dev/null
+    fi
+    install_status=$?
+    kill "$spinner_pid" > /dev/null 2>&1
+    if [[ $install_status -ne 0 ]]; then
+        failed_pkgs+=("$pkg")
+        echo "Failed to install $pkg"
+    else
+        echo "Successfully installed the $pkg"
+    fi
 done
 
 for gem in "${gems_list[@]}"; do
     check_exit
-    if ! gem list -i $(echo "$gem" | awk '{print $1}') &> /dev/null; then
+    # Pass the full spec (name plus any "-v VERSION"), not just the bare
+    # name, to "gem list -i": some gems (e.g. bundler, json, bigdecimal)
+    # ship as Ruby "default gems" bundled with the interpreter itself, so
+    # "gem list -i bundler" is true even when the specific pinned version
+    # this script wants isn't actually installed, causing it to be
+    # silently skipped.
+    if ! gem list -i $gem &> /dev/null; then
         loading_animation &
         spinner_pid=$!
         echo "Installing $gem, please wait..."
@@ -419,6 +280,14 @@ fi
 
 
 if grep -q -i "euler" /etc/os-release; then
-		sudo $installer remove -y rubygem-bundler
-        sudo gem install bundler -v 2.3.26
+	# openEuler's system Ruby ships bundler as a "default gem" (e.g. 2.4.10)
+	# with no version pin needed by lkp-tests (it has no Gemfile.lock yet).
+	# Installing an older pinned bundler version (previously "-v 2.3.26")
+	# leaves that default gem's version as the highest one on the system;
+	# since default gems have no real libexec/ directory on disk,
+	# RubyGems' unconstrained `bundle` binstub picks it and crashes with
+	# "cannot load such file -- .../libexec/bundle". Installing the latest
+	# bundler instead guarantees it outranks the phantom default gem so
+	# the binstub resolves to the real, working install.
+	sudo gem install bundler
 fi
