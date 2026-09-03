@@ -72,6 +72,65 @@ check_package_manager
 echo "Detected Package Manager: $installer"
 echo "--------------------------------------------"
 
+####################################################################
+# EL8-vintage modular-Ruby compatibility fix.
+#
+# Some EL8-based RHEL-family systems (hit so far on Anolis OS 8.x; likely
+# also affects RHEL/CentOS/Rocky/Alma 8.x, since they share the same
+# AppStream module data) default to the "ruby:2.5" module stream, which is
+# far too old for several gem dependencies this repo needs -- rubocop's
+# "prism" needs Ruby>=2.7, tins' "io-console" needs Ruby>=2.6,
+# activesupport's "zeitwerk" needs Ruby>=3.2, and bundler itself needs
+# Ruby>=3.0. This has nothing to do with which distro it is, only with
+# whether dnf module streams are in play and which one is enabled, so it's
+# detected purely at runtime:
+#   - dnf module list ruby returning no "ruby" stream at all (EL9+ dropped
+#     most AppStream modularity, and apt-based distros have no concept of
+#     this) makes this a no-op.
+#   - An already-modern (>=3.0) system ruby also makes this a no-op.
+#   - Only runs if this system's own repos actually advertise a >=3.0
+#     stream to switch to.
+# Must run before the package install loop below, since that loop installs
+# "ruby" (and friends) from whichever module stream is enabled at the time.
+ensure_modern_ruby_module() {
+	command -v dnf &> /dev/null || return 0
+
+	local newest
+	newest=$(dnf module list ruby 2>/dev/null | awk '/^ruby[[:space:]]/{print $2}' | grep -E '^[0-9]+(\.[0-9]+)?$' | sort -t. -k1,1n -k2,2n | tail -1)
+	[[ -n "$newest" ]] || return 0
+	[[ "${newest%%.*}" -ge 3 ]] || return 0
+
+	if command -v ruby &> /dev/null && ruby -e 'exit(RUBY_VERSION.to_f >= 3.0 ? 0 : 1)' &> /dev/null; then
+		return 0
+	fi
+
+	echo "System Ruby is too old for lkp-tests' gem dependencies (module stream ruby:2.5 or similar); switching to the newer ruby:$newest stream available in this system's repos..."
+	dnf module reset -y ruby &> /dev/null
+	dnf module enable -y "ruby:$newest" &> /dev/null
+	# Remove whatever was already installed from the old stream so the
+	# normal package loop below reinstalls it fresh from the new one.
+	dnf remove -y ruby ruby-libs ruby-devel rubygems-devel rubygem-psych &> /dev/null
+}
+ensure_modern_ruby_module
+
+# Some RHEL-family systems (hit so far on Anolis OS 8.10) don't enable EPEL
+# by default, and several packages this repo's dependencies/packages.txt
+# expects (fakeroot, capstone-devel, libunwind-devel, ...) live there
+# instead of in base/AppStream/PowerTools -- causing otherwise-avoidable
+# "No match for argument" failures. epel-release is itself an ordinary
+# package published from those same base repos on every RHEL-family
+# distro's own mirrors (not a third-party add-on), so installing it is
+# always safe; this is a no-op if epel-release isn't found under this
+# exact name in this system's currently-enabled repos at all (e.g.
+# because it's already installed, or this particular distro doesn't ship
+# it this way).
+ensure_epel_enabled() {
+	[[ "$installer" == "dnf" || "$installer" == "yum" ]] || return 0
+	rpm -q epel-release &> /dev/null && return 0
+	"$installer" install -y epel-release &> /dev/null
+}
+ensure_epel_enabled
+
 # apt/apt-get share the same package list ("apt" family), dnf/yum share
 # theirs ("yum" family). See dependencies/packages.txt for the actual list.
 case "$installer" in

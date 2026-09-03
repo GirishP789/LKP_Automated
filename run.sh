@@ -144,6 +144,29 @@ EOSCRIPT
 	cp -r $lkp_dir/distro/adaptation/centos $lkp_dir/distro/adaptation/openeuler
 }
 
+# hackbench.c and cyclictest.c both live in the upstream rt-tests repo,
+# which three separate lkp-tests PKGBUILDs (rt-tests, hackbench,
+# cyclictest) each independently git-clone fresh from a live, unpinned
+# upstream URL ("pkgver=git", as opposed to lkp-tests itself which
+# clone_lkp() pins to a fixed commit) and build. Upstream has
+# intermittently shipped src/cyclictest/cyclictest.c using bool/true/false
+# without #include <stdbool.h>, which fails to compile under any distro or
+# GCC version and aborts whichever of these three "lkp install" steps
+# happens to trigger the build -- unrelated to the actual distro or
+# benchmark being installed (confirmed hitting both Rocky Linux 10 and
+# Anolis OS 8.10 with different upstream HEADs). Patch it into all three
+# defensively on every run, on every distro, rather than only on the one
+# that happened to hit it first -- this is NOT part of the Rocky-only
+# region below since it isn't a Rocky-specific issue.
+patch_rt_tests() {
+	local pkgbuild
+	for pkgbuild in "$lkp_dir/programs/rt-tests/pkg/PKGBUILD" "$lkp_dir/programs/hackbench/pkg/PKGBUILD" "$lkp_dir/programs/cyclictest/pkg/PKGBUILD"; do
+		if [[ -f "$pkgbuild" ]] && ! grep -q "stdbool" "$pkgbuild"; then
+			sed -i '/cd "\$srcdir\//a\	grep -q "#include <stdbool.h>" src/cyclictest/cyclictest.c || sed -i "/#include <cpuid.h>/a #include <stdbool.h>" src/cyclictest/cyclictest.c' "$pkgbuild"
+		fi
+	done
+}
+
 ####################################################################
 # Rocky Linux 10 (EL10) specific compatibility patches.
 #
@@ -161,26 +184,6 @@ EOSCRIPT
 
 is_rocky_linux() {
 	grep -qi '^ID="\?rocky"\?$' /etc/os-release 2>/dev/null
-}
-
-# hackbench.c and cyclictest.c both live in the upstream rt-tests repo,
-# which three separate lkp-tests PKGBUILDs (rt-tests, hackbench,
-# cyclictest) each independently git-clone fresh from a live, unpinned
-# upstream URL ("pkgver=git", as opposed to lkp-tests itself which
-# clone_lkp() pins to a fixed commit) and build. Upstream has
-# intermittently shipped src/cyclictest/cyclictest.c using bool/true/false
-# without #include <stdbool.h>, which fails to compile under any distro or
-# GCC version and aborts whichever of these three "lkp install" steps
-# happens to trigger the build -- unrelated to the actual distro or
-# benchmark being installed. Patch it into all three defensively on every
-# run rather than only on the one that happened to hit it first.
-patch_rt_tests() {
-	local pkgbuild
-	for pkgbuild in "$lkp_dir/programs/rt-tests/pkg/PKGBUILD" "$lkp_dir/programs/hackbench/pkg/PKGBUILD" "$lkp_dir/programs/cyclictest/pkg/PKGBUILD"; do
-		if [[ -f "$pkgbuild" ]] && ! grep -q "stdbool" "$pkgbuild"; then
-			sed -i '/cd "\$srcdir\//a\	grep -q "#include <stdbool.h>" src/cyclictest/cyclictest.c || sed -i "/#include <cpuid.h>/a #include <stdbool.h>" src/cyclictest/cyclictest.c' "$pkgbuild"
-		fi
-	done
 }
 
 # Returns success if $1 is already installed, or is installable from a
@@ -283,7 +286,6 @@ patch_perl_ipc_run_depends() {
 # distro's install.
 apply_rocky_linux_patches() {
 	is_rocky_linux || return 0
-	patch_rt_tests
 	patch_perf_depends
 	patch_turbostat_depends
 	patch_perl_ipc_run_depends
@@ -344,6 +346,9 @@ install_lkp() {
 	if command -v yum &> /dev/null; then
 		sed -i 's/libc6-dev:i386/# libc6-dev:i386/g' $lkp_dir/distro/depends/lkp-dev
 	fi
+
+	# Applies to every distro (see patch_rt_tests()'s comment above).
+	patch_rt_tests
 
 	# See the "Rocky Linux 10 (EL10) specific compatibility patches" region
 	# above -- everything it does is gated on is_rocky_linux() internally,
