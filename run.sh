@@ -97,6 +97,33 @@ clone_lkp() {
     cd $loc
 }
 
+# clone_lkp() above only (re-)clones the lkp-tests *source* into
+# $loc/lkp-tests / $lkp_dir; it says nothing about whether "lkp" or
+# "ebizzy" are actually installed as usable commands on this system yet
+# (e.g. a fresh git clone of this LKP_Automated repo, or a previous run
+# that got interrupted before "make install"/the benchmark builds
+# finished, both leave the source tree present on disk with nothing
+# actually installed). Explicitly check with "which" right after cloning
+# and log the real state, instead of anything downstream assuming
+# "source present" means "installed".
+checkpoint_lkp_ebizzy_installed() {
+	echo "--------------------------------------------------------------------"
+	echo "Checkpoint: verifying actual tool installation state (the presence"
+	echo "of the cloned lkp-tests source tree above does NOT by itself mean"
+	echo "lkp/ebizzy are installed)"
+	if command -v lkp &> /dev/null; then
+		echo "  lkp:    installed, found at $(which lkp)"
+	else
+		echo "  lkp:    NOT installed"
+	fi
+	if command -v ebizzy &> /dev/null; then
+		echo "  ebizzy: installed, found at $(which ebizzy)"
+	else
+		echo "  ebizzy: NOT installed"
+	fi
+	echo "--------------------------------------------------------------------"
+}
+
 support_addition() {
     # lkp-tests doesn't ship distro/installer, distro/adaptation-pkg, or
     # distro/adaptation entries for these RHEL-family distros, so they need
@@ -450,6 +477,7 @@ check_package_existence make
 
 check_exit
 clone_lkp
+checkpoint_lkp_ebizzy_installed
 
 # check wheather the required paths are present in sudoers file or not, if not present add them
 $loc/edit-sudoers.sh $user
@@ -525,6 +553,17 @@ fi
 check_exit
 echo "============================"
 echo "Initiating the ebizzy checks"
+# Unlike hackbench (installed straight to /usr/local/bin, so "command -v
+# hackbench" finds it), ebizzy's PKGBUILD package() installs it to the
+# fixed /lkp/benchmarks/ebizzy/ebizzy path, which is never on $PATH -- so
+# "command -v ebizzy" would never find it even when it genuinely is
+# installed. Check that actual path instead, so an already-installed,
+# already-working ebizzy is not needlessly rebuilt/retested via
+# install_test_case on every run, mirroring the hackbench check above.
+if [[ -x /lkp/benchmarks/ebizzy/ebizzy ]]; then
+	echo "Ebizzy found on the system in location: /lkp/benchmarks/ebizzy/ebizzy"
+	test_test_case "ebizzy"
+fi
 if [[ $test_install_status -eq "-1" ]]; then
         install_test_case "ebizzy"
         test_test_case "ebizzy"
