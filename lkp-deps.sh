@@ -131,6 +131,27 @@ ensure_epel_enabled() {
 }
 ensure_epel_enabled
 
+# Similarly, glibc-static (and other -static/-devel packages some
+# lkp-tests benchmarks need to build) lives in the "CodeReady Builder"
+# repo on RHEL-family EL8+ systems (confirmed hitting Rocky Linux 10,
+# where it's called "crb" and ships disabled by default; older EL8
+# systems call the same repo "powertools"/"PowerTools" instead). This
+# only enables a repo ID that this system's own dnf already knows about
+# (i.e. it's one of its own vendor repos, nothing third-party), and is a
+# no-op wherever none of these repo IDs exist (apt-based distros, EL9+
+# distros that dropped this split, or distros using a different name
+# entirely).
+ensure_crb_enabled() {
+	command -v dnf &> /dev/null || return 0
+
+	local repo
+	for repo in crb powertools PowerTools codeready-builder; do
+		dnf repolist --all 2>/dev/null | awk '{print $1}' | grep -qx "$repo" || continue
+		dnf config-manager --set-enabled "$repo" &> /dev/null
+	done
+}
+ensure_crb_enabled
+
 # apt/apt-get share the same package list ("apt" family), dnf/yum share
 # theirs ("yum" family). See dependencies/packages.txt for the actual list.
 case "$installer" in
